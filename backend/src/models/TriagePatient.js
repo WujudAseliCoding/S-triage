@@ -11,17 +11,39 @@ export const TriagePatient = sequelize.define('TriagePatient', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  nik: {
+    type: DataTypes.STRING(16),
+    allowNull: true,
+  },
+  tanggal_lahir: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
   umur: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
+  satuan_umur: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'tahun',
+  },
   jenis_kelamin: {
     type: DataTypes.ENUM('L', 'P'),
     allowNull: false,
+    defaultValue: 'L',
   },
   keluhan_utama: {
     type: DataTypes.TEXT,
     allowNull: false,
+  },
+  waktu_mulai_keluhan: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  alergi_obat: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
   tanda_vital: {
     type: DataTypes.JSONB,
@@ -40,6 +62,19 @@ export const TriagePatient = sequelize.define('TriagePatient', {
   },
   analisis_ai: {
     type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  catatan_petugas: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  status_verifikasi: {
+    type: DataTypes.ENUM('BELUM_DIVERIFIKASI', 'DIVERIFIKASI', 'OVERRIDDEN'),
+    allowNull: false,
+    defaultValue: 'BELUM_DIVERIFIKASI',
+  },
+  petugas_verifikator_id: {
+    type: DataTypes.UUID,
     allowNull: true,
   },
 }, {

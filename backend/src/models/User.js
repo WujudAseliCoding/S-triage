@@ -27,6 +27,40 @@ export const User = sequelize.define('User', {
     type: DataTypes.ENUM('ADMIN', 'DOKTER', 'PERAWAT'),
     defaultValue: 'PERAWAT',
   },
+  spesialisasi: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: 'Dokter Umum',
+  },
+  layanan: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: 'Layanan FKTP & Triase',
+  },
+  kompetensi: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: 'FKTP & Triase',
+  },
+  status: {
+    type: DataTypes.ENUM('Tersedia', 'Istirahat', 'Sibuk', 'OFF'),
+    defaultValue: 'Tersedia',
+  },
+  jadwal: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: '08:00–14:00',
+  },
+  hari: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: 'Senin–Jumat',
+  },
+  jalur: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: 'Umum',
+  },
 }, {
   timestamps: true,
   tableName: 'users',

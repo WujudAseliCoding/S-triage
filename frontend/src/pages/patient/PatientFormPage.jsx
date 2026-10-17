@@ -10,6 +10,7 @@ import {
   patientFormSchema,
 } from '../../utils/patientFormSchema';
 import { inputClass } from '../../utils/styles';
+import { registerTriagePatient } from '../../services/triageService';
 
 const checkboxClass = 'size-5 shrink-0 rounded border-slate-300 accent-brand-700';
 
@@ -32,6 +33,7 @@ export default function PatientFormPage() {
   const navigate = useNavigate();
   const [values, setValues] = useState(PATIENT_FORM_INITIAL);
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const errorKeys = Object.keys(errors);
 
@@ -45,7 +47,7 @@ export default function PatientFormPage() {
     });
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const result = patientFormSchema.safeParse(values);
 
@@ -59,9 +61,49 @@ export default function PatientFormPage() {
       return;
     }
 
-    // TODO: Kirim ke backend lewat services/ (POST /api/pengajuan) dan pakai referensi dari server.
-    const referensi = `SIM-2026-${String(Date.now()).slice(-3)}`;
-    navigate('/antrean', { state: { submission: { ...result.data, referensi } } });
+    setIsSubmitting(true);
+    try {
+      // Hitung umur numerik
+      let umurNum = Number(result.data.umur);
+      if (isNaN(umurNum) || umurNum <= 0) {
+        if (result.data.tanggalLahir) {
+          const birthYear = new Date(result.data.tanggalLahir).getFullYear();
+          umurNum = new Date().getFullYear() - birthYear;
+        } else {
+          umurNum = 25;
+        }
+      }
+
+      const payload = {
+        nama_pasien: result.data.nama,
+        umur: umurNum,
+        satuan_umur: result.data.satuanUmur || 'tahun',
+        jenis_kelamin: 'L',
+        keluhan_utama: result.data.keluhan,
+        tanda_vital: {},
+      };
+
+      const res = await registerTriagePatient(payload);
+      const queueData = res?.queue;
+      const referensi = queueData?.nomor_antrean || `SIM-${String(Date.now()).slice(-3)}`;
+
+      navigate('/antrean', {
+        state: {
+          submission: {
+            ...result.data,
+            referensi,
+            nomorTiket: referensi,
+            priority: res?.patient?.prioritas_triage === 'P1' ? 'merah' : res?.patient?.prioritas_triage === 'P2' ? 'kuning' : 'hijau',
+          },
+        },
+      });
+    } catch (err) {
+      console.warn('Pendaftaran ke backend gagal, beralih ke simulasi lokal:', err);
+      const referensi = `SIM-2026-${String(Date.now()).slice(-3)}`;
+      navigate('/antrean', { state: { submission: { ...result.data, referensi } } });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -337,9 +379,10 @@ export default function PatientFormPage() {
         </p>
         <button
           type="submit"
-          className="mt-4 w-full rounded-xl bg-brand-700 px-4 py-4 text-base font-bold text-white transition hover:bg-brand-800"
+          disabled={isSubmitting}
+          className="mt-4 w-full rounded-xl bg-brand-700 px-4 py-4 text-base font-bold text-white transition hover:bg-brand-800 disabled:opacity-60"
         >
-          Kirim keluhan
+          {isSubmitting ? 'Mengirim & Menganalisis AI...' : 'Kirim keluhan'}
         </button>
         <p className="mt-4 text-sm leading-relaxed text-slate-500">
           Pengiriman tidak menentukan prioritas triase atau nomor antrean. Kondisi pasien dinilai

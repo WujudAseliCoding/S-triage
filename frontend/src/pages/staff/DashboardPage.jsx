@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, TrendingDown } from 'lucide-react';
 import Card from '../../components/common/Card';
@@ -10,14 +11,45 @@ import {
   PRIORITY_DISTRIBUTION,
   RECENT_VISITS,
 } from '../../data/mockData';
-
-const TOTAL_PATIENTS = PRIORITY_DISTRIBUTION.reduce((sum, item) => sum + item.count, 0);
+import { getDashboardStats } from '../../services/dashboardService';
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState(DASHBOARD_STATS);
+  const [priorityDist, setPriorityDist] = useState(PRIORITY_DISTRIBUTION);
+  const [recentVisits, setRecentVisits] = useState(RECENT_VISITS);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    getDashboardStats()
+      .then((data) => {
+        if (!isMounted || !data) return;
+        if (data.stats) setStats(data.stats);
+        if (data.priority_distribution) setPriorityDist(data.priority_distribution);
+        if (data.recent_visits && data.recent_visits.length > 0) setRecentVisits(data.recent_visits);
+        setIsLive(true);
+      })
+      .catch((err) => {
+        console.warn('Gagal memuat metrik live dashboard, menggunakan data cadangan:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const totalPatients = priorityDist.reduce((sum, item) => sum + (item.count || 0), 0) || 1;
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="rounded-2xl border border-brand-100 bg-brand-50/60 px-6 py-5">
-        <p className="text-sm font-bold text-slate-900">Data simulasi • Prototipe FKTP</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-bold text-slate-900">
+            {isLive ? '🟢 Terhubung ke Database PostgreSQL / Supabase' : 'Data simulasi • Prototipe FKTP'}
+          </p>
+          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+            {isLive ? 'Live Sync DB' : 'Simulasi'}
+          </span>
+        </div>
         <p className="mt-2 text-xs text-slate-500">
           Merah: penanganan segera tanpa menunggu antrean. Keterisian &gt;85% hanya peringatan, bukan
           keputusan rujukan otomatis.
@@ -25,7 +57,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {DASHBOARD_STATS.map((stat) => (
+        {stats.map((stat) => (
           <div key={stat.label} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-slate-600">{stat.label}</p>
@@ -42,8 +74,8 @@ export default function DashboardPage() {
       <div className="grid gap-5 lg:grid-cols-5">
         <Card title="Distribusi Prioritas Triase" className="lg:col-span-3">
           <div className="space-y-4">
-            {PRIORITY_DISTRIBUTION.map(({ priority, count }) => {
-              const data = TRIAGE_PRIORITY[priority];
+            {priorityDist.map(({ priority, count }) => {
+              const data = TRIAGE_PRIORITY[priority] || TRIAGE_PRIORITY.hijau;
               return (
                 <div key={priority}>
                   <div className="mb-1.5 flex items-center justify-between text-xs font-semibold">
@@ -52,7 +84,7 @@ export default function DashboardPage() {
                     </span>
                     <span className="text-slate-900">{count} Pasien</span>
                   </div>
-                  <ProgressBar value={Math.round((count / TOTAL_PATIENTS) * 100)} barClass={data.barClass} />
+                  <ProgressBar value={Math.round((count / totalPatients) * 100)} barClass={data.barClass} />
                 </div>
               );
             })}
@@ -103,8 +135,8 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {RECENT_VISITS.map((visit) => (
-                  <tr key={visit.nama}>
+                {recentVisits.map((visit) => (
+                  <tr key={visit.id || visit.nama}>
                     <td className="px-3 py-3.5 font-semibold text-slate-900">{visit.nama}</td>
                     <td className="px-3 py-3.5">
                       <PriorityBadge priority={visit.priority} />

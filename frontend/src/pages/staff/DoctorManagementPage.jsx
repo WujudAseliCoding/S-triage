@@ -1,34 +1,84 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Avatar from '../../components/common/Avatar';
 import { DOCTORS } from '../../data/mockData';
 import { buttonOutlineClass, buttonPrimaryClass } from '../../utils/styles';
+import { getDoctors, updateDoctorStatus } from '../../services/doctorService';
 
 const STATUS_STYLE = {
   Tersedia: 'bg-emerald-500',
   Istirahat: 'bg-amber-500',
   Sibuk: 'bg-red-500',
+  OFF: 'bg-slate-400',
 };
 
 function StatusDot({ status }) {
   return (
     <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-      <span className={`size-2 rounded-full ${STATUS_STYLE[status]}`} aria-hidden="true" />
+      <span className={`size-2 rounded-full ${STATUS_STYLE[status] || 'bg-slate-400'}`} aria-hidden="true" />
       {status}
     </span>
   );
 }
 
 export default function DoctorManagementPage() {
+  const [doctors, setDoctors] = useState(DOCTORS);
   const [selectedId, setSelectedId] = useState(DOCTORS[0].id);
-  const selected = DOCTORS.find((doctor) => doctor.id === selectedId);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    getDoctors()
+      .then((data) => {
+        if (!isMounted || !data || data.length === 0) return;
+        const mapped = data.map((d) => ({
+          id: d.id,
+          nama: d.nama,
+          peran: d.spesialisasi || 'Dokter Umum',
+          layanan: d.layanan || 'Layanan FKTP & Triase',
+          kompetensi: d.kompetensi || 'FKTP & Triase',
+          status: d.status || 'Tersedia',
+          jadwal: d.jadwal || '08:00–14:00',
+          jalur: d.jalur || 'Umum',
+          hari: d.hari || 'Senin–Jumat',
+        }));
+        setDoctors(mapped);
+        setSelectedId(mapped[0].id);
+        setIsLive(true);
+      })
+      .catch((err) => {
+        console.warn('Gagal memuat dokter dari database, menggunakan data cadangan:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleStatusChange = async (newStatus) => {
+    if (!selected) return;
+    try {
+      await updateDoctorStatus(selected.id, newStatus);
+      setDoctors((prev) =>
+        prev.map((d) => (d.id === selected.id ? { ...d, status: newStatus } : d))
+      );
+    } catch (err) {
+      console.error('Gagal memperbarui status dokter:', err);
+    }
+  };
+
+  const selected = doctors.find((doctor) => doctor.id === selectedId) || doctors[0] || DOCTORS[0];
 
   return (
     <div className="mx-auto max-w-6xl">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Simulasi FKTP Puskesmas Medan Selayang</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-slate-900">FKTP Puskesmas Medan Selayang</h2>
+            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+              {isLive ? 'Live Supabase DB' : 'Simulasi'}
+            </span>
+          </div>
           <p className="mt-1 text-xs text-slate-400">
-            Data simulasi untuk operasional triase, layanan, dan penugasan petugas.
+            Data operasional triase, layanan, dan penugasan dokter/petugas.
           </p>
         </div>
         <div className="flex gap-3">
@@ -44,7 +94,7 @@ export default function DoctorManagementPage() {
       <div className="mt-8 grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
           <div className="grid gap-5 sm:grid-cols-2">
-            {DOCTORS.map((doctor) => {
+            {doctors.map((doctor) => {
               const active = doctor.id === selectedId;
               return (
                 <button
@@ -96,6 +146,22 @@ export default function DoctorManagementPage() {
             </p>
             <div className="mt-3">
               <StatusDot status={selected.status} />
+            </div>
+            <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+              {['Tersedia', 'Istirahat', 'Sibuk', 'OFF'].map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => handleStatusChange(st)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                    selected.status === st
+                      ? 'bg-brand-700 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
             </div>
           </div>
 

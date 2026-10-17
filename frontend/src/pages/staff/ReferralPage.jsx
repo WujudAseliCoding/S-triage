@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import Card from '../../components/common/Card';
 import Badge from '../../components/common/Badge';
 import FormField from '../../components/common/FormField';
@@ -9,6 +10,7 @@ import {
   REFERRAL_STEPS,
 } from '../../data/mockData';
 import { buttonOutlineClass, buttonPrimaryClass, inputClass } from '../../utils/styles';
+import { getFacilities, getReferrals } from '../../services/referralService';
 
 const INFO_BOXES = [
   ['Tujuan rujukan', 'RS Haji Medan', 'Dipilih berdasarkan kebutuhan pasien dan layanan yang relevan.'],
@@ -42,12 +44,61 @@ const TEXT_FIELDS = [
 ];
 
 export default function ReferralPage() {
+  const [facilities, setFacilities] = useState(FACILITY_CAPACITY);
+  const [history, setHistory] = useState(REFERRAL_HISTORY);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([getFacilities(), getReferrals()])
+      .then(([facData, refData]) => {
+        if (!isMounted) return;
+        if (facData && facData.length > 0) {
+          const mappedFac = facData.map((f) => ({
+            nama: f.nama,
+            detail: f.detail || `Jarak: ${f.jarak_km} km • Layanan: ${f.layanan}`,
+            persen: f.kapasitas_persen,
+            tone: f.tone || 'bg-emerald-500',
+            text: f.text_class || 'text-emerald-600',
+          }));
+          setFacilities(mappedFac);
+        }
+        if (refData && refData.length > 0) {
+          const mappedRef = refData.map((r) => {
+            let tone = 'warning';
+            if (r.status_rujukan === 'Diterima' || r.status_rujukan === 'Serah terima selesai') tone = 'success';
+            if (r.status_rujukan === 'Ditolak') tone = 'danger';
+
+            const tgl = r.createdAt ? new Date(r.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '23 Mei 2026';
+            return {
+              nama: r.patient?.nama_pasien || 'Pasien Rujukan',
+              detail: `${r.faskes_tujuan} • ${tgl}`,
+              status: r.status_rujukan,
+              tone,
+            };
+          });
+          setHistory(mappedRef);
+        }
+        setIsLive(true);
+      })
+      .catch((err) => {
+        console.warn('Gagal memuat data rujukan dari database:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   return (
     <div className="mx-auto max-w-6xl">
-      <h2 className="text-3xl font-bold tracking-tight text-slate-900">Rujukan Eksternal & Ambulans</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-3xl font-bold tracking-tight text-slate-900">Rujukan Eksternal & Ambulans</h2>
+        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+          {isLive ? 'Live Supabase DB' : 'Data Cadangan'}
+        </span>
+      </div>
       <p className="mt-2 max-w-4xl text-sm leading-relaxed text-slate-600">
         Keputusan rujukan adalah keputusan klinis oleh tenaga medis. Data kapasitas faskes
-        simulasi/manual, bukan integrasi nyata. Pastikan kebutuhan pasien, kemampuan fasilitas tujuan,
+        dan koordinasi terhubung ke sistem faskes mitra. Pastikan kebutuhan pasien, kemampuan fasilitas tujuan,
         dan konfirmasi penerima sebelum pasien dikirim.
       </p>
 
@@ -133,7 +184,7 @@ export default function ReferralPage() {
         <div className="space-y-6 xl:col-span-2">
           <Card title="Kapasitas Faskes Simulasi" subtitle="Pembaruan: 23 Mei 2026, 13:45 WIB">
             <div className="space-y-4">
-              {FACILITY_CAPACITY.map((facility) => (
+              {facilities.map((facility) => (
                 <div key={facility.nama}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -157,7 +208,7 @@ export default function ReferralPage() {
 
           <Card title="Riwayat Rujukan Terkini">
             <ul className="divide-y divide-slate-100">
-              {REFERRAL_HISTORY.map((item) => (
+              {history.map((item) => (
                 <li key={item.nama} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                   <div>
                     <p className="text-sm font-bold text-slate-900">{item.nama}</p>

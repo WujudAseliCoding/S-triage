@@ -19,14 +19,27 @@ import {
   getReferralById,
   updateReferralStatus
 } from '../controllers/referral.controller.js';
-
+import { getDoctors, updateDoctorStatus } from '../controllers/doctor.controller.js';
+import { getFacilities } from '../controllers/facility.controller.js';
+import { getDashboardStats, getAnalyticsStats } from '../controllers/dashboard.controller.js';
 
 const router = Router();
 
-// General status
+// General status & Health
 router.get('/', getStatus);
 router.get('/health', getHealth);
 router.use('/auth', authRoutes);
+
+// Dashboard & Analytics
+router.get('/dashboard/stats', getDashboardStats);
+router.get('/analytics/stats', getAnalyticsStats);
+
+// Doctors Management
+router.get('/doctors', getDoctors);
+router.put('/doctors/:id/status', updateDoctorStatus);
+
+// External Referral Facilities
+router.get('/facilities', getFacilities);
 
 // === FOKUS B: CORE ENGINE TRIASE, INTEGRASI AI, & ANTREAN ===
 

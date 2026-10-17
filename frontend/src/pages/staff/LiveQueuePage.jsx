@@ -1,18 +1,27 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { TRIAGE_PRIORITY } from '../../utils/constants';
 import { LIVE_QUEUE } from '../../data/mockData';
 import { buttonOutlineClass } from '../../utils/styles';
+import { getLiveQueue, callPatient } from '../../services/queueService';
 
 const ALL_DOCTORS = 'Semua Dokter';
 
-function QueueCard({ patient }) {
+function QueueCard({ patient, onCall }) {
   const isRed = patient.priority === 'merah';
-  const data = TRIAGE_PRIORITY[patient.priority];
+  const data = TRIAGE_PRIORITY[patient.priority] || TRIAGE_PRIORITY.hijau;
+  const isCalling = patient.status === 'CALLING';
 
   return (
     <article className={`rounded-xl border bg-white p-4 shadow-xs ${data.cardClass}`}>
-      <h3 className="text-sm font-bold text-slate-900">{patient.nama}</h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-bold text-slate-900">{patient.nama}</h3>
+        {patient.nomor_antrean && (
+          <span className="rounded bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">
+            {patient.nomor_antrean}
+          </span>
+        )}
+      </div>
       <p className="mt-0.5 text-xs text-slate-600">{patient.keluhan}</p>
 
       {isRed ? (
@@ -49,9 +58,16 @@ function QueueCard({ patient }) {
         </>
       ) : (
         <>
-          <p className="mt-3 text-xs font-bold text-slate-800">
-            Simulasi: menunggu • verifikasi belum terdokumentasi
-          </p>
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-800">
+              {isCalling ? '📢 Sedang Dipanggil ke Ruang Periksa' : 'Menunggu antrean'}
+            </p>
+            {isCalling && (
+              <span className="animate-pulse rounded bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                DIPANGGIL
+              </span>
+            )}
+          </div>
           <span className="mt-2 inline-block rounded bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">
             Catatan belum lengkap
           </span>
@@ -66,9 +82,14 @@ function QueueCard({ patient }) {
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-700"
+              onClick={() => onCall && onCall(patient.id)}
+              className={`rounded-lg px-3 py-2 text-xs font-bold text-white transition ${
+                isCalling
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : 'bg-brand-600 hover:bg-brand-700'
+              }`}
             >
-              Panggil pasien
+              {isCalling ? 'Panggil Ulang' : 'Panggil pasien'}
             </button>
             <button type="button" className={`${buttonOutlineClass} px-3 py-2 text-xs`}>
               Nilai ulang
@@ -88,8 +109,8 @@ function QueueCard({ patient }) {
   );
 }
 
-function QueueColumn({ priority, patients, className = '' }) {
-  const data = TRIAGE_PRIORITY[priority];
+function QueueColumn({ priority, patients, onCall, className = '' }) {
+  const data = TRIAGE_PRIORITY[priority] || TRIAGE_PRIORITY.hijau;
 
   return (
     <section className={`rounded-2xl border p-4 sm:p-5 ${data.panelClass} ${className}`}>
@@ -105,7 +126,9 @@ function QueueColumn({ priority, patients, className = '' }) {
         {patients.length === 0 ? (
           <p className="py-6 text-center text-xs text-slate-500">Tidak ada pasien pada kategori ini.</p>
         ) : (
-          patients.map((patient) => <QueueCard key={patient.id} patient={patient} />)
+          patients.map((patient) => (
+            <QueueCard key={patient.id} patient={patient} onCall={onCall} />
+          ))
         )}
       </div>
     </section>
@@ -127,13 +150,63 @@ function InfoPanel({ title, children, tone = 'default' }) {
 
 export default function LiveQueuePage() {
   const [selectedDoctor, setSelectedDoctor] = useState(ALL_DOCTORS);
+  const [queueList, setQueueList] = useState(LIVE_QUEUE);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    getLiveQueue()
+      .then((data) => {
+        if (!isMounted || !data || data.length === 0) return;
+        const mapped = data.map((q) => {
+          let priority = 'hijau';
+          if (q.patient?.prioritas_triage === 'P1') priority = 'merah';
+          else if (q.patient?.prioritas_triage === 'P2') priority = 'kuning';
+
+          const waktuMasuk = q.waktu_masuk || q.createdAt;
+          const masukStr = waktuMasuk
+            ? new Date(waktuMasuk).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '08:00';
+
+          return {
+            id: q.id,
+            nama: q.patient?.nama_pasien || 'Anonim',
+            keluhan: q.patient?.keluhan_utama || 'Keluhan umum',
+            priority,
+            dokter: q.dokter?.nama || 'Belum ditugaskan',
+            masuk: masukStr,
+            nomor_antrean: q.nomor_antrean,
+            status: q.status,
+          };
+        });
+        setQueueList(mapped);
+        setIsLive(true);
+      })
+      .catch((err) => {
+        console.warn('Gagal memuat antrean live dari database, menggunakan data cadangan:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleCallPatient = async (queueId) => {
+    try {
+      await callPatient(queueId);
+      setQueueList((prev) =>
+        prev.map((q) => (q.id === queueId ? { ...q, status: 'CALLING' } : q))
+      );
+    } catch (err) {
+      console.error('Gagal memanggil pasien:', err);
+    }
+  };
 
   const doctorOptions = useMemo(
-    () => [ALL_DOCTORS, ...new Set(LIVE_QUEUE.map((patient) => patient.dokter))],
-    [],
+    () => [ALL_DOCTORS, ...new Set(queueList.map((patient) => patient.dokter))],
+    [queueList],
   );
 
-  const filtered = LIVE_QUEUE.filter(
+  const filtered = queueList.filter(
     (patient) => selectedDoctor === ALL_DOCTORS || patient.dokter === selectedDoctor,
   );
   const byPriority = (priority) => filtered.filter((patient) => patient.priority === priority);
@@ -163,10 +236,12 @@ export default function LiveQueuePage() {
             Tampilan Kanban
           </span>
         </div>
-        <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
-          <span className="size-2 rounded-full bg-amber-500" aria-hidden="true" />
-          Simulasi operasional • Urutan panggil dinamis
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+            <span className="size-2 rounded-full bg-emerald-600" aria-hidden="true" />
+            {isLive ? 'Live DB Supabase' : 'Data Cadangan'}
+          </span>
+        </div>
       </div>
 
       <InfoPanel title="Merah tidak masuk antrean biasa • Tidak menggunakan timer biasa" tone="danger">
@@ -207,11 +282,11 @@ export default function LiveQueuePage() {
         </dl>
       </InfoPanel>
 
-      <QueueColumn priority="merah" patients={byPriority('merah')} />
+      <QueueColumn priority="merah" patients={byPriority('merah')} onCall={handleCallPatient} />
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        <QueueColumn priority="kuning" patients={byPriority('kuning')} />
-        <QueueColumn priority="hijau" patients={byPriority('hijau')} />
+        <QueueColumn priority="kuning" patients={byPriority('kuning')} onCall={handleCallPatient} />
+        <QueueColumn priority="hijau" patients={byPriority('hijau')} onCall={handleCallPatient} />
       </div>
 
       <InfoPanel title="Luaran kunjungan • terpisah dari antrean">

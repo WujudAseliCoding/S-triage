@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Calendar,
   ChevronDown,
@@ -21,6 +22,7 @@ import {
   SERVICE_TIMES,
   WEEKLY_URGENCY,
 } from '../../data/mockData';
+import { getAnalyticsStats } from '../../services/dashboardService';
 
 const STAT_ICONS = [
   { icon: Users, className: 'bg-brand-50 text-brand-600' },
@@ -36,21 +38,48 @@ const REPORT_ICON = {
 };
 
 const MAX_TREND = Math.max(...DAILY_TREND.map((d) => d.nilai));
-const MAX_DOCTOR = Math.max(...DOCTOR_VOLUME.map((d) => d.jumlah));
 const MAX_WEEK = Math.max(...WEEKLY_URGENCY.map((w) => w.merah + w.kuning + w.hijau));
 
 export default function AnalyticsPage() {
+  const [stats, setStats] = useState(ANALYTICS_STATS);
+  const [doctorVolume, setDoctorVolume] = useState(DOCTOR_VOLUME);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    getAnalyticsStats()
+      .then((data) => {
+        if (!isMounted || !data) return;
+        if (data.stats) setStats(data.stats);
+        if (data.doctor_volume && data.doctor_volume.length > 0) setDoctorVolume(data.doctor_volume);
+        setIsLive(true);
+      })
+      .catch((err) => {
+        console.warn('Gagal memuat analitik live dari database:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const maxDoctor = Math.max(...doctorVolume.map((d) => d.jumlah || 1));
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
-          type="button"
-          className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
-        >
-          <Calendar className="size-4 text-slate-500" aria-hidden="true" />
-          Periode: 1 Sep 2026 - 27 Sep 2026
-          <ChevronDown className="size-4 text-slate-500" aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700"
+          >
+            <Calendar className="size-4 text-slate-500" aria-hidden="true" />
+            Periode: 1 Sep 2026 - 27 Sep 2026
+            <ChevronDown className="size-4 text-slate-500" aria-hidden="true" />
+          </button>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+            {isLive ? 'Live Supabase DB' : 'Data Cadangan'}
+          </span>
+        </div>
         <button type="button" className={buttonPrimaryClass}>
           <Download className="size-4" aria-hidden="true" />
           Ekspor agregat
@@ -58,8 +87,8 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {ANALYTICS_STATS.map((stat, index) => {
-          const { icon: Icon, className } = STAT_ICONS[index];
+        {stats.map((stat, index) => {
+          const { icon: Icon, className } = STAT_ICONS[index] || STAT_ICONS[0];
           return (
             <div key={stat.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
               <div className="flex items-center justify-between">
@@ -145,13 +174,13 @@ export default function AnalyticsPage() {
       <div className="grid gap-5 lg:grid-cols-5">
         <Card title="Volume Layanan Dokter • Data simulasi" className="lg:col-span-3 lg:self-start">
           <div className="space-y-3.5">
-            {DOCTOR_VOLUME.map((doctor) => (
+            {doctorVolume.map((doctor) => (
               <div key={doctor.nama} className="grid grid-cols-[minmax(0,10rem)_1fr_2.5rem] items-center gap-3 text-xs sm:grid-cols-[13rem_1fr_2.5rem] sm:text-sm">
                 <span className="truncate text-slate-700">{doctor.nama}</span>
                 <div className="h-3 overflow-hidden rounded-sm bg-slate-100">
                   <div
                     className="h-full rounded-sm bg-brand-600"
-                    style={{ width: `${(doctor.jumlah / MAX_DOCTOR) * 100}%` }}
+                    style={{ width: `${(doctor.jumlah / maxDoctor) * 100}%` }}
                   />
                 </div>
                 <span className="text-right font-bold text-slate-900">{doctor.jumlah}</span>
