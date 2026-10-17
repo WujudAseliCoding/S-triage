@@ -35,17 +35,20 @@ function App() {
           <p>
             React JS (Vite) + Express JS Monorepo Setup
           </p>
-          <div style={{
-            margin: '1rem auto',
-            padding: '0.75rem 1.25rem',
-            borderRadius: '8px',
-            backgroundColor: isBackendConnected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-            border: `1px solid ${isBackendConnected ? '#22c55e' : '#ef4444'}`,
-            color: isBackendConnected ? '#4ade80' : '#f87171',
-            fontSize: '0.9rem',
-            maxWidth: '480px'
-          }}>
-            <strong>Status Backend: </strong> {backendStatus}
+          <div className={`my-4 mx-auto p-4 rounded-xl max-w-md text-sm font-medium border transition-all ${
+            isBackendConnected
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+          }`}>
+            <div className="flex items-center justify-center gap-2">
+              <span className={`inline-block w-2.5 h-2.5 rounded-full ${isBackendConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+              <span><strong>Status Backend:</strong> {backendStatus}</span>
+            </div>
+          </div>
+          <div className="flex justify-center gap-2 mt-2">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
+              Tailwind CSS v4 Active
+            </span>
           </div>
         </div>
         <button

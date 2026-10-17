@@ -1,6 +1,6 @@
 # S-Triage (Monorepo)
 
-Monorepo website menggunakan **React.js (Vite)** untuk Frontend dan **Express.js** untuk Backend.
+Monorepo website menggunakan **React.js (Vite)** + **Tailwind CSS v4** untuk Frontend dan **Express.js** untuk Backend.
 
 ---
 
