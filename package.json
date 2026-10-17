@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
+    "@supabase/server": "^1.9.2",
     "openai": "^7.36.0"
   }
 }
