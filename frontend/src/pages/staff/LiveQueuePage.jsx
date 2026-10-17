@@ -3,11 +3,11 @@ import { ChevronDown } from 'lucide-react';
 import { TRIAGE_PRIORITY } from '../../utils/constants';
 import { LIVE_QUEUE } from '../../data/mockData';
 import { buttonOutlineClass } from '../../utils/styles';
-import { getLiveQueue, callPatient } from '../../services/queueService';
+import { getLiveQueue, callPatient, startServing, finishServing, cancelQueue } from '../../services/queueService';
 
 const ALL_DOCTORS = 'Semua Dokter';
 
-function QueueCard({ patient, onCall }) {
+function QueueCard({ patient, onCall, onServe, onFinish, onCancel }) {
   const isRed = patient.priority === 'merah';
   const data = TRIAGE_PRIORITY[patient.priority] || TRIAGE_PRIORITY.hijau;
   const isCalling = patient.status === 'CALLING';
@@ -95,12 +95,32 @@ function QueueCard({ patient, onCall }) {
               Nilai ulang
             </button>
           </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onServe && onServe(patient.id)}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+            >
+              Mulai Layani
+            </button>
+            <button
+              type="button"
+              onClick={() => onFinish && onFinish(patient.id)}
+              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+            >
+              Selesai
+            </button>
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold">
             <button type="button" className="text-left text-red-700 hover:underline">
               Kondisi memburuk
             </button>
-            <button type="button" className="text-left text-slate-600 hover:underline">
-              Tunda dengan alasan
+            <button
+              type="button"
+              onClick={() => onCancel && onCancel(patient.id)}
+              className="text-left text-slate-600 hover:underline"
+            >
+              Batalkan antrean
             </button>
           </div>
         </>
@@ -109,7 +129,7 @@ function QueueCard({ patient, onCall }) {
   );
 }
 
-function QueueColumn({ priority, patients, onCall, className = '' }) {
+function QueueColumn({ priority, patients, onCall, onServe, onFinish, onCancel, className = '' }) {
   const data = TRIAGE_PRIORITY[priority] || TRIAGE_PRIORITY.hijau;
 
   return (
@@ -127,7 +147,14 @@ function QueueColumn({ priority, patients, onCall, className = '' }) {
           <p className="py-6 text-center text-xs text-slate-500">Tidak ada pasien pada kategori ini.</p>
         ) : (
           patients.map((patient) => (
-            <QueueCard key={patient.id} patient={patient} onCall={onCall} />
+            <QueueCard
+              key={patient.id}
+              patient={patient}
+              onCall={onCall}
+              onServe={onServe}
+              onFinish={onFinish}
+              onCancel={onCancel}
+            />
           ))
         )}
       </div>
@@ -198,6 +225,37 @@ export default function LiveQueuePage() {
       );
     } catch (err) {
       console.error('Gagal memanggil pasien:', err);
+    }
+  };
+
+  const handleServe = async (queueId) => {
+    try {
+      await startServing(queueId);
+      setQueueList((prev) =>
+        prev.map((q) => (q.id === queueId ? { ...q, status: 'SERVING' } : q))
+      );
+    } catch (err) {
+      console.error('Gagal memulai pelayanan:', err);
+    }
+  };
+
+  const handleFinish = async (queueId) => {
+    try {
+      await finishServing(queueId);
+      // Hapus dari daftar live queue setelah selesai
+      setQueueList((prev) => prev.filter((q) => q.id !== queueId));
+    } catch (err) {
+      console.error('Gagal menyelesaikan pelayanan:', err);
+    }
+  };
+
+  const handleCancel = async (queueId) => {
+    try {
+      await cancelQueue(queueId);
+      // Hapus dari daftar live queue setelah dibatalkan
+      setQueueList((prev) => prev.filter((q) => q.id !== queueId));
+    } catch (err) {
+      console.error('Gagal membatalkan antrean:', err);
     }
   };
 
@@ -282,11 +340,32 @@ export default function LiveQueuePage() {
         </dl>
       </InfoPanel>
 
-      <QueueColumn priority="merah" patients={byPriority('merah')} onCall={handleCallPatient} />
+      <QueueColumn
+        priority="merah"
+        patients={byPriority('merah')}
+        onCall={handleCallPatient}
+        onServe={handleServe}
+        onFinish={handleFinish}
+        onCancel={handleCancel}
+      />
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        <QueueColumn priority="kuning" patients={byPriority('kuning')} onCall={handleCallPatient} />
-        <QueueColumn priority="hijau" patients={byPriority('hijau')} onCall={handleCallPatient} />
+        <QueueColumn
+          priority="kuning"
+          patients={byPriority('kuning')}
+          onCall={handleCallPatient}
+          onServe={handleServe}
+          onFinish={handleFinish}
+          onCancel={handleCancel}
+        />
+        <QueueColumn
+          priority="hijau"
+          patients={byPriority('hijau')}
+          onCall={handleCallPatient}
+          onServe={handleServe}
+          onFinish={handleFinish}
+          onCancel={handleCancel}
+        />
       </div>
 
       <InfoPanel title="Luaran kunjungan • terpisah dari antrean">

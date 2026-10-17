@@ -16,7 +16,8 @@ export const verifyToken = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(403).json({
+    // 401 (bukan 403) agar frontend interceptor bisa mendeteksi token expired & redirect ke /login
+    return res.status(401).json({
       status: 'error',
       message: 'Token tidak valid atau telah kedaluwarsa.',
     });

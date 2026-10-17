@@ -114,10 +114,22 @@ export const updateReferralStatus = async (req, res, next) => {
     const { id } = req.params;
     const { status_rujukan, catatan_medis } = req.body;
 
-    if (!['ACCEPTED', 'REJECTED'].includes(status_rujukan)) {
+    // Semua nilai status yang valid sesuai model Referral
+    const VALID_STATUSES = [
+      'Draf',
+      'Menunggu konfirmasi',
+      'Diterima',
+      'Dalam perjalanan',
+      'Serah terima selesai',
+      'Ditolak',
+      'PENDING',
+      'ACCEPTED',
+      'REJECTED',
+    ];
+    if (!VALID_STATUSES.includes(status_rujukan)) {
       return res.status(400).json({
         status: 'error',
-        message: 'Status rujukan harus ACCEPTED atau REJECTED.',
+        message: `Status rujukan tidak valid. Nilai yang diizinkan: ${VALID_STATUSES.join(', ')}.`,
       });
     }
 

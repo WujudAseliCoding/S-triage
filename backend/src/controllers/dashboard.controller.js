@@ -23,7 +23,7 @@ export const getDashboardStats = async (req, res, next) => {
       order: [['updatedAt', 'DESC']],
       include: [
         { model: TriagePatient, as: 'patient' },
-        { model: User, as: 'dokter', attributes: ['id', 'nama', 'spesialisasi'] },
+        { model: User, as: 'dokter', attributes: ['id', 'nama', 'spesialisasi', 'status'] },
       ],
     });
 

@@ -1,8 +1,8 @@
 import 'dotenv/config';
 
-const WAY_API_URL = process.env.WAY_API_URL || 'https://api-way.gutech.dev/v1/chat/completions';
+const WAY_API_URL = process.env.WAY_API_URL || '';
 const WAY_API_KEY = process.env.WAY_API_KEY || '';
-const WAY_API_MODEL = process.env.WAY_API_MODEL || 'gutech/fast';
+const WAY_API_MODEL = process.env.WAY_API_MODEL || '';
 
 /**
  * Menganalisis keluhan pasien menggunakan Way AI Gateway.

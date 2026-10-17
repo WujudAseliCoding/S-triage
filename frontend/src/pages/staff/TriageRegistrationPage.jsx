@@ -1,10 +1,10 @@
+import { useState } from 'react';
 import Card from '../../components/common/Card';
 import FormField from '../../components/common/FormField';
 import PriorityBadge from '../../components/common/PriorityBadge';
 import { TriangleAlert } from 'lucide-react';
-import { buttonOutlineClass, inputClass } from '../../utils/styles';
-
-const SYMPTOM_CHIPS = ['Keluhan sesak napas', 'Demam tinggi', 'Batuk kering', 'Tanda vital belum lengkap'];
+import { buttonOutlineClass, buttonPrimaryClass, inputClass } from '../../utils/styles';
+import { registerTriagePatient } from '../../services/triageService';
 
 const COMPLETENESS = [
   ['Identitas kunjungan / no. rekam medis', 'BELUM TERTAUT'],
@@ -23,12 +23,12 @@ const FINAL_CHECKS = [
 ];
 
 const VITAL_FIELDS = [
-  ['Tekanan darah (mmHg)', 'Belum diukur'],
-  ['Nadi (kali/menit)', 'Belum diukur'],
-  ['Frekuensi napas (kali/menit)', 'Belum diukur'],
-  ['SpO2 (%)', 'Belum diukur'],
-  ['Suhu (°C)', 'Belum diukur'],
-  ['Kesadaran', 'Belum dinilai'],
+  ['tekanan_darah', 'Tekanan darah (mmHg)', 'Belum diukur'],
+  ['nadi', 'Nadi (kali/menit)', 'Belum diukur'],
+  ['frekuensi_napas', 'Frekuensi napas (kali/menit)', 'Belum diukur'],
+  ['spo2', 'SpO2 (%)', 'Belum diukur'],
+  ['suhu', 'Suhu (°C)', 'Belum diukur'],
+  ['kesadaran', 'Kesadaran', 'Belum dinilai'],
 ];
 
 const ASSESSMENT_FIELDS = [
@@ -38,6 +38,14 @@ const ASSESSMENT_FIELDS = [
   ['bahaya', 'Tanda bahaya', 'Belum dinilai'],
   ['riwayat', 'Riwayat penyakit', 'Belum lengkap'],
 ];
+
+// Pemetaan kode prioritas ke label & badge
+const PRIORITY_INFO = {
+  P1: { badge: 'merah', text: 'P1 — Merah (Segera)' },
+  P2: { badge: 'kuning', text: 'P2 — Kuning (Mendesak)' },
+  P3: { badge: 'hijau', text: 'P3 — Hijau (Tidak Mendesak)' },
+  P0: { badge: 'hitam', text: 'P0 — Hitam (Ekspektan)' },
+};
 
 function StatusTag({ children }) {
   return (
@@ -57,8 +65,130 @@ function ChecklistRow({ label, status }) {
 }
 
 export default function TriageRegistrationPage() {
+  const [form, setForm] = useState({
+    nama: '',
+    umur: '',
+    jenis_kelamin: 'L',
+    keluhan: '',
+    catatan: '',
+    vital: {},
+    assessment: {},
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const setVital = (key, value) =>
+    setForm((prev) => ({ ...prev, vital: { ...prev.vital, [key]: value } }));
+  const setAssessment = (key, value) =>
+    setForm((prev) => ({ ...prev, assessment: { ...prev.assessment, [key]: value } }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.nama.trim() || !form.keluhan.trim()) {
+      setError('Nama pasien dan keluhan utama wajib diisi.');
+      return;
+    }
+    const umurNum = parseInt(form.umur, 10) || 25;
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        nama_pasien: form.nama.trim(),
+        umur: umurNum,
+        jenis_kelamin: form.jenis_kelamin,
+        keluhan_utama: form.keluhan.trim(),
+        tanda_vital: form.vital,
+      };
+      const res = await registerTriagePatient(payload);
+      setResult(res);
+    } catch (err) {
+      const errMsg =
+        err?.response?.data?.message ||
+        (err?.response?.data?.errors
+          ? err.response.data.errors.map((e) => e.message).join(', ')
+          : null) ||
+        'Gagal mendaftarkan pasien. Pastikan backend aktif dan coba lagi.';
+      setError(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleReset = () => {
+    setResult(null);
+    setError('');
+    setForm({
+      nama: '',
+      umur: '',
+      jenis_kelamin: 'L',
+      keluhan: '',
+      catatan: '',
+      vital: {},
+      assessment: {},
+    });
+  };
+
+  // ── Tampilan sukses setelah pendaftaran berhasil ──
+  if (result) {
+    const priorityKey = result.patient?.prioritas_triage || 'P3';
+    const priorityInfo = PRIORITY_INFO[priorityKey] || PRIORITY_INFO.P3;
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Card title="✅ Pasien Berhasil Didaftarkan">
+          <div className="space-y-4">
+            <div className="rounded-xl bg-emerald-50 p-4">
+              <p className="text-sm font-bold text-emerald-800">Nomor Antrean</p>
+              <p className="mt-1 text-5xl font-extrabold tracking-tight text-emerald-700">
+                {result.queue?.nomor_antrean}
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Nama Pasien</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{result.patient?.nama_pasien}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Prioritas Triase (Rekomendasi AI)</p>
+                <div className="mt-1.5">
+                  <PriorityBadge priority={priorityInfo.badge} withDescription />
+                </div>
+              </div>
+              {result.patient?.skor_urgensi != null && (
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">Skor Urgensi AI</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{result.patient.skor_urgensi}</p>
+                </div>
+              )}
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-500">Status Antrean</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{result.queue?.status}</p>
+              </div>
+            </div>
+            {result.patient?.analisis_ai && (
+              <div className="rounded-xl border border-brand-100 bg-brand-50 p-4">
+                <p className="text-xs font-bold text-brand-800">
+                  Analisis AI — belum terverifikasi klinis
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-brand-700">{result.patient.analisis_ai}</p>
+                <p className="mt-2 text-[11px] text-brand-600">
+                  Prioritas akhir ditetapkan petugas klinis. AI hanya memberikan rekomendasi awal.
+                </p>
+              </div>
+            )}
+            <button type="button" onClick={handleReset} className={buttonPrimaryClass}>
+              + Daftarkan Pasien Baru
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Formulir pendaftaran ──
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 xl:grid-cols-5">
+    <form onSubmit={handleSubmit} noValidate className="mx-auto grid max-w-6xl gap-6 xl:grid-cols-5">
       <div className="space-y-6 xl:col-span-3">
         <Card
           title="Data dari pasien — belum diverifikasi"
@@ -67,29 +197,59 @@ export default function TriageRegistrationPage() {
           <p className="mb-3 text-xs font-semibold text-slate-700">Identitas pasien</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Nama / identitas sementara" htmlFor="nama" className="text-xs">
-              <input id="nama" defaultValue="Kurniawan Siregar" className={inputClass()} />
+              <input
+                id="nama"
+                value={form.nama}
+                onChange={(e) => setField('nama', e.target.value)}
+                placeholder="Nama lengkap pasien"
+                className={inputClass()}
+                required
+              />
             </FormField>
-            <FormField label="Tanggal lahir / umur" htmlFor="lahir">
-              <input id="lahir" defaultValue="28 April 1991" className={inputClass()} />
+            <FormField label="Umur (tahun)" htmlFor="umur">
+              <input
+                id="umur"
+                type="text"
+                inputMode="numeric"
+                value={form.umur}
+                onChange={(e) => setField('umur', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                placeholder="Contoh: 35"
+                className={inputClass()}
+              />
             </FormField>
           </div>
 
-          <p className="mb-3 mt-5 text-xs font-semibold text-slate-700">Identitas tambahan</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="NIK" htmlFor="nik">
-              <input id="nik" placeholder="Belum lengkap" className={inputClass()} />
-            </FormField>
-            <FormField label="BPJS / asuransi" htmlFor="bpjs">
-              <input id="bpjs" placeholder="Belum lengkap" className={inputClass()} />
-            </FormField>
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-semibold text-slate-700">Jenis kelamin</p>
+            <div className="flex gap-4">
+              {[
+                ['L', 'Laki-laki'],
+                ['P', 'Perempuan'],
+              ].map(([val, label]) => (
+                <label key={val} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="radio"
+                    name="jenis_kelamin"
+                    value={val}
+                    checked={form.jenis_kelamin === val}
+                    onChange={() => setField('jenis_kelamin', val)}
+                    className="size-4 accent-brand-700"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
           </div>
 
           <FormField label="Keluhan utama" htmlFor="keluhan" className="mt-5">
             <textarea
               id="keluhan"
               rows={4}
-              defaultValue="Pasien mengeluh demam tinggi sejak 3 hari yang lalu, disertai batuk kering dan sesak napas saat beraktivitas ringan. Data ini belum diverifikasi tenaga medis."
+              value={form.keluhan}
+              onChange={(e) => setField('keluhan', e.target.value)}
+              placeholder="Pasien mengeluh demam tinggi sejak 3 hari, disertai batuk kering dan sesak napas..."
               className={`${inputClass()} resize-none border-brand-300 bg-brand-50/60`}
+              required
             />
           </FormField>
         </Card>
@@ -108,23 +268,37 @@ export default function TriageRegistrationPage() {
         >
           <p className="mb-3 text-xs font-semibold text-slate-700">Tanda vital</p>
           <div className="grid gap-4 sm:grid-cols-3">
-            {VITAL_FIELDS.map(([label, placeholder]) => (
-              <FormField key={label} label={label} htmlFor={label} className="[&_label]:text-xs">
-                <input id={label} placeholder={placeholder} className={inputClass()} />
+            {VITAL_FIELDS.map(([key, label, placeholder]) => (
+              <FormField key={key} label={label} htmlFor={key} className="[&_label]:text-xs">
+                <input
+                  id={key}
+                  value={form.vital[key] || ''}
+                  onChange={(e) => setVital(key, e.target.value)}
+                  placeholder={placeholder}
+                  className={inputClass()}
+                />
               </FormField>
             ))}
           </div>
 
           <div className="mt-5 space-y-4">
-            {ASSESSMENT_FIELDS.map(([id, label, placeholder]) => (
-              <FormField key={id} label={label} htmlFor={id} className="[&_label]:text-xs">
-                <input id={id} placeholder={placeholder} className={inputClass()} />
+            {ASSESSMENT_FIELDS.map(([key, label, placeholder]) => (
+              <FormField key={key} label={label} htmlFor={key} className="[&_label]:text-xs">
+                <input
+                  id={key}
+                  value={form.assessment[key] || ''}
+                  onChange={(e) => setAssessment(key, e.target.value)}
+                  placeholder={placeholder}
+                  className={inputClass()}
+                />
               </FormField>
             ))}
             <FormField label="Catatan awal" htmlFor="catatan" className="[&_label]:text-xs">
               <textarea
                 id="catatan"
                 rows={4}
+                value={form.catatan}
+                onChange={(e) => setField('catatan', e.target.value)}
                 placeholder="Catat faktor relevan, temuan pemeriksaan, dan alasan perubahan prioritas."
                 className={`${inputClass()} resize-none`}
               />
@@ -144,16 +318,7 @@ export default function TriageRegistrationPage() {
           title="Asesmen & prioritas"
           subtitle="AI belum tervalidasi klinis. Gunakan sebagai bantuan, bukan penentu triase akhir."
         >
-          <p className="text-xs text-slate-600">Data kurang / dasar rekomendasi:</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {SYMPTOM_CHIPS.map((chip) => (
-              <span key={chip} className="rounded-full bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700">
-                {chip}
-              </span>
-            ))}
-          </div>
-
-          <p className="mt-5 text-xs text-slate-600">Rekomendasi AI — belum terverifikasi</p>
+          <p className="text-xs text-slate-600">Rekomendasi AI — menunggu input keluhan</p>
           <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-slate-700">
             <span className="size-1.5 rounded-full bg-slate-500" aria-hidden="true" />
             Belum dapat ditentukan
@@ -204,19 +369,34 @@ export default function TriageRegistrationPage() {
           </p>
         </Card>
 
-        <Card title="Verifikasi akhir">
+        <Card title="Verifikasi akhir & Kirim ke Database">
           <div className="space-y-3">
             {FINAL_CHECKS.map(([label, status]) => (
               <ChecklistRow key={label} label={label} status={status} />
             ))}
           </div>
 
+          {error && (
+            <div
+              className="mt-4 rounded-lg bg-red-50 px-3.5 py-3 text-xs font-semibold text-red-700"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+
           <button
-            type="button"
-            disabled
-            className="mt-5 w-full rounded-lg bg-slate-200 px-4 py-3 text-sm font-semibold text-slate-600"
+            type="submit"
+            disabled={isSubmitting}
+            className={`mt-5 w-full rounded-lg py-3 text-sm font-semibold text-white transition ${
+              isSubmitting
+                ? 'cursor-not-allowed bg-slate-400'
+                : 'bg-brand-700 hover:bg-brand-800'
+            }`}
           >
-            Lengkapi asesmen dahulu
+            {isSubmitting
+              ? 'Mendaftarkan & Menganalisis AI...'
+              : 'Daftarkan Pasien ke Database'}
           </button>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <button type="button" className={buttonOutlineClass}>
@@ -227,11 +407,12 @@ export default function TriageRegistrationPage() {
             </button>
           </div>
           <p className="mt-4 text-xs leading-relaxed text-slate-400">
-            Status belum siap diverifikasi. Prioritas ditetapkan petugas klinis sesuai kewenangan.
-            Alasan perubahan wajib dicatat jika prioritas diubah; jalur darurat tetap tersedia.
+            Pendaftaran akan mengirim data ke database Supabase PostgreSQL dan memproses analisis AI.
+            Prioritas akhir ditetapkan petugas klinis sesuai kewenangan. Alasan perubahan wajib
+            dicatat jika prioritas diubah; jalur darurat tetap tersedia.
           </p>
         </Card>
       </div>
-    </div>
+    </form>
   );
 }
