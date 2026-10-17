@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Lock, Mail } from 'lucide-react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Mail } from 'lucide-react';
 import { z } from 'zod';
 import Logo from '../../components/common/Logo';
 import FormField from '../../components/common/FormField';
+import PasswordInput from '../../components/common/PasswordInput';
 import PriorityBadge from '../../components/common/PriorityBadge';
 import { useAuth } from '../../hooks/useAuth';
-import { MOCK_STAFF_USER } from '../../data/mockData';
+import api from '../../services/api';
 import { buttonPrimaryClass } from '../../utils/styles';
 
 const loginSchema = z.object({
@@ -51,6 +52,9 @@ export default function LoginPage() {
   const location = useLocation();
   const [values, setValues] = useState({ email: '', password: '', remember: false });
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
@@ -61,8 +65,9 @@ export default function LoginPage() {
     setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
-  const handleSubmit = (event) => {
+    const handleSubmit = async (event) => {
     event.preventDefault();
+    setServerError('');
     const result = loginSchema.safeParse(values);
 
     if (!result.success) {
@@ -74,9 +79,16 @@ export default function LoginPage() {
       return;
     }
 
-    // TODO: Ganti dengan authService.login(values) saat endpoint /api/auth/login tersedia.
-    login({ ...MOCK_STAFF_USER, email: result.data.email }, 'mock-token');
-    navigate(location.state?.from?.pathname ?? '/dashboard', { replace: true });
+        setSubmitting(true);
+    try {
+      const { data } = await api.post('/auth/login', result.data);
+      login(data.data.user, data.data.token);
+      navigate(location.state?.from?.pathname ?? '/dashboard', { replace: true });
+    } catch (error) {
+      setServerError(error.response?.data?.message ?? 'Gagal masuk. Coba lagi.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -116,6 +128,11 @@ export default function LoginPage() {
           </p>
 
           <form onSubmit={handleSubmit} noValidate className="mt-10 space-y-5">
+            {location.state?.registered && (
+              <p className="rounded-lg bg-emerald-50 px-3.5 py-2.5 text-xs font-semibold text-emerald-700" role="status">
+                Akun berhasil dibuat. Silakan masuk.
+              </p>
+            )}
             <FormField label="Alamat Email" htmlFor="email" error={errors.email}>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-slate-400" />
@@ -145,23 +162,14 @@ export default function LoginPage() {
                   Lupa Sandi?
                 </button>
               </div>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4.5 -translate-y-1/2 text-slate-400" />
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="••••••••••••"
-                  value={values.password}
-                  onChange={(e) => handleChange('password', e.target.value)}
-                  aria-invalid={Boolean(errors.password)}
-                  className={`block w-full rounded-lg border bg-white py-3 pl-11 pr-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${
-                    errors.password
-                      ? 'border-red-400 focus:ring-red-200'
-                      : 'border-slate-200 focus:border-brand-600 focus:ring-brand-100'
-                  }`}
-                />
-              </div>
+                            <PasswordInput
+                id="password"
+                autoComplete="current-password"
+                placeholder="••••••••••••"
+                value={values.password}
+                onChange={(value) => handleChange('password', value)}
+                error={errors.password}
+              />
               {errors.password && (
                 <p className="mt-1.5 text-xs font-semibold text-red-600" role="alert">
                   ! {errors.password}
@@ -179,10 +187,23 @@ export default function LoginPage() {
               Ingat saya (jangan di perangkat bersama)
             </label>
 
-            <button type="submit" className={`${buttonPrimaryClass} w-full py-3.5`}>
-              Masuk sebagai Petugas
+                        {serverError && (
+              <p className="rounded-lg bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700" role="alert">
+                {serverError}
+              </p>
+            )}
+
+            <button type="submit" disabled={submitting} className={`${buttonPrimaryClass} w-full py-3.5`}>
+              {submitting ? 'Memproses…' : 'Masuk sebagai Petugas'}
             </button>
           </form>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Belum punya akun?{' '}
+            <Link to="/daftar" className="font-semibold text-brand-700 hover:underline">
+              Buat akun
+            </Link>
+          </p>
 
           <p className="mt-8 text-center text-xs leading-relaxed text-slate-500">
             Hubungi IT Support Fasilkom USU jika mengalami masalah masuk. Pasien tidak perlu masuk —
