@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getStatus, getHealth } from '../controllers/api.controller.js';
+import authRoutes from './auth.routes.js';
 import {
   registerTriagePatient,
   getTriagePatients,
@@ -19,11 +20,13 @@ import {
   updateReferralStatus
 } from '../controllers/referral.controller.js';
 
+
 const router = Router();
 
 // General status
 router.get('/', getStatus);
 router.get('/health', getHealth);
+router.use('/auth', authRoutes);
 
 // === FOKUS B: CORE ENGINE TRIASE, INTEGRASI AI, & ANTREAN ===
 
