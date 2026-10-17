@@ -9,3 +9,4 @@ app.listen(PORT, async () => {
   console.log(`📡 API endpoint: http://localhost:${PORT}/api`);
   await testDbConnection();
 });
+
