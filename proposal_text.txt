@@ -1,0 +1,488 @@
+=== PAGE 1 ===
+ 
+ 
+S-TRIAGE 
+Sistem Manajemen Antrean dan Triase Berbasis AI untuk Fasilitas Kesehatan Tingkat Pertama 
+PROPOSAL INFEST HACKATHON 2026 
+Sub-tema: Kesehatan Inklusif (Accessible Healthcare with AI) 
+ 
+Diajukan Oleh : 
+Loncat ga nih? 
+ 
+1. Christein Akadojuanrich Habayaki Purba 
+(241401012) 
+2. El Fahreza Sufi 
+ 
+ 
+ 
+ 
+(241401042) 
+3. Akief Maulana Aulia - (Ketua Tim)  
+ 
+(241401072) 
+ 
+ 
+Kontak Ketua Tim: akiefmaulana3321@gmail.com / +62 813-7825-0112 
+ 
+ 
+PROGRAM STUDI ILMU KOMPUTER 
+FAKULTAS ILMU KOMPUTER DAN TEKNOLOGI INFORMASI 
+UNIVERSITAS SUMATERA UTARA 
+MEDAN 
+2026 
+
+========================================
+
+=== PAGE 2 ===
+1 
+ 
+DAFTAR ISI 
+DAFTAR ISI .................................................................................................................................. 1 
+Ringkasan Eksekutif ..................................................................................................................... 2 
+1. Latar Belakang Masalah .......................................................................................................... 2 
+1.1 Overcrowding: Standar Resmi vs Realita Lapangan ...................................................... 2 
+1.2 Human Error dalam Proses Triase .................................................................................... 3 
+1.3 Blind Routing Antar Faskes ............................................................................................... 3 
+2. Tujuan dan Sasaran .................................................................................................................. 4 
+2.1 Tujuan Utama ...................................................................................................................... 4 
+2.2 Sasaran ................................................................................................................................. 4 
+3. Konsep Solusi ............................................................................................................................ 5 
+3.1 Deskripsi Solusi dan Fitur Utama ..................................................................................... 5 
+3.2 Keunikan dan Inovasi Dibanding Pendekatan yang Ada ............................................... 5 
+3.3 Mekanisme AI (Alur Sistem, Peran AI, dan Logika Solusi) ........................................... 5 
+3.4 Business Model Canvas (BMC) ......................................................................................... 6 
+3.5 Ilustrasi Simulasi Nilai bagi Klinik (FKTP skala kecil-menengah) ............................... 7 
+4. Desain dan Prototipe Solusi ..................................................................................................... 8 
+4.1 Alur Pengguna (User Flow) ................................................................................................ 8 
+4.2 Arsitektur Sistem dan Tech Stack (Rencana) ................................................................... 8 
+4.3 Diagram Arsitektur Sistem, Alur Proses, dan Wireframe / Mock-up (Rencana) ......... 9 
+5. Analisis Dampak dan Manfaat .............................................................................................. 14 
+5.1 Dampak Sosial ................................................................................................................... 14 
+5.2 Dampak Ekonomi ............................................................................................................. 14 
+5.3 Dampak terhadap Sistem Kesehatan .............................................................................. 14 
+5.4 Manfaat Spesifik bagi Target Pengguna ......................................................................... 14 
+6. Penutup .................................................................................................................................... 15 
+7. Daftar Pustaka ........................................................................................................................ 16 
+8. Lampiran ................................................................................................................................. 17 
+8.1 Ruang Lingkup dan Batasan MVP ................................................................................. 17 
+8.2 Tim Pelaksana ................................................................................................................... 17 
+ 
+
+========================================
+
+=== PAGE 3 ===
+2 
+ 
+Ringkasan Eksekutif 
+S-Triage adalah aplikasi B2B SaaS berbasis web yang membantu Fasilitas Kesehatan Tingkat 
+Pertama (FKTP) — klinik dan puskesmas — mengelola antrean pasien secara lebih cepat, 
+akurat, dan adil melalui bantuan Artificial Intelligence (AI). Alih-alih pasien mendaftar secara 
+manual dan menunggu tanpa kejelasan prioritas, S-Triage membaca keluhan pasien, 
+mengklasifikasikan tingkat urgensinya, mengarahkan ke tenaga medis yang tepat dan sedang 
+tersedia, serta secara otomatis merekomendasikan rujukan ke faskes mitra terdekat apabila klinik 
+sedang penuh. 
+Produk ini dirancang sebagai alat bantu keputusan bagi tenaga medis (human-in-the-loop), bukan 
+pengganti penilaian klinis mereka, sehingga tetap aman secara etika medis namun tetap memberi 
+dampak nyata pada efisiensi operasional FKTP. Solusi ini dikembangkan sejalan dengan tema 
+“AI for All: Intelligent Solutions for an Equitable Future”, dengan fokus pada pemerataan akses 
+layanan kesehatan primer di wilayah dengan keterbatasan tenaga medis. 
+1. Latar Belakang Masalah 
+Masalah antrean di FKTP Indonesia bukan sekadar keluhan anekdotal, melainkan isu layanan 
+publik yang berulang kali disorot oleh lembaga pengawas resmi maupun kajian akademik. 
+Ketiadaan sistem triase dan manajemen antrean yang cerdas menjadi hambatan langsung 
+terhadap pemerataan akses layanan kesehatan yang berkualitas — sejalan dengan urgensi tema 
+“AI for All” yang mendorong solusi AI berorientasi kebutuhan manusia dan aksesibilitas layanan 
+publik. 
+1.1 Overcrowding: Standar Resmi vs Realita Lapangan 
+Keputusan Menteri Kesehatan RI Nomor 129/Menkes/SK/II/2008 tentang Standar Pelayanan 
+Minimal Rumah Sakit menetapkan standar waktu tunggu pasien rawat jalan maksimal 60 menit, 
+terhitung sejak pendaftaran hingga pasien diterima/dilayani oleh dokter [1]. Berbagai kajian 
+lapangan di puskesmas menunjukkan standar ini kerap tidak terpenuhi — misalnya studi di 
+Puskesmas Gamping 1, Sleman, mencatat rata-rata waktu tunggu 61,1 menit dengan 70% pasien 
+menunggu lebih dari 60 menit, salah satunya disebabkan oleh kendala pada proses administrasi 
+manual [2]. 
+Sepanjang 2025, Ombudsman RI di berbagai daerah melakukan inspeksi dan menerima 
+pengaduan masyarakat terkait pelayanan puskesmas: di Manokwari, Papua Barat, ditemukan 
+loket pelayanan yang ditutup [3]; di Kupang, NTT, mendorong penyusunan Standar Pelayanan 
+Publik yang lebih jelas di tingkat puskesmas [4]; sementara di Mamasa, Sulawesi Barat, 
+ditemukan dugaan kelambatan penanganan pasien gawat darurat yang berujung kematian [5]. 
+
+========================================
+
+=== PAGE 4 ===
+3 
+ 
+Kasus antrean pasien yang membludak juga sempat viral secara nasional, misalnya di RSUD 
+Datu Beru, Takengon, Aceh Tengah, akibat lonjakan pasien yang tidak mampu ditampung 
+kapasitas layanan yang ada [6]. 
+1.2 Human Error dalam Proses Triase 
+Triase — proses memilah tingkat kegawatan pasien — sangat bergantung pada penilaian manual 
+tenaga medis di garis depan, dan akurasinya terbukti sangat bervariasi antar fasilitas. Sebuah 
+penelitian terhadap 50 perawat IGD di Indonesia menemukan bahwa 50,7% pelaksanaan triase 
+tidak akurat, dengan rincian under-triage 12% dan over-triage 38,7%, serta menunjukkan 
+hubungan signifikan antara tingkat pengetahuan perawat dan akurasi triase [7]. Studi lain pada 
+tiga rumah sakit tipe C di Malang bahkan mencatat pelaksanaan triase berkualitas hanya pada 
+22,9% kasus, sementara 77,1% sisanya tidak berkualitas [8]. Standar mutu pelayanan 
+menetapkan ambang toleransi kesalahan under-triage yang ketat, menandakan betapa krusialnya 
+isu ini bagi keselamatan pasien. 
+1.3 Blind Routing Antar Faskes 
+Tidak adanya sistem informasi lintas-faskes yang real-time membuat pasien cenderung 
+menumpuk di satu fasilitas kesehatan yang dianggap familier atau terdekat, sementara faskes lain 
+di radius yang sama mungkin memiliki kapasitas kosong. Akibatnya, terjadi distribusi beban 
+layanan yang timpang antar faskes dalam satu wilayah, padahal total kapasitas layanan 
+sebenarnya masih mencukupi kebutuhan masyarakat. 
+Kesimpulan: overcrowding, human error dalam triase, dan blind routing bukanlah masalah 
+yang berdiri sendiri, melainkan tiga gejala dari satu akar masalah yang sama — ketiadaan 
+sistem manajemen antrean cerdas yang terintegrasi di lini pertama layanan kesehatan 
+Indonesia. 
+ 
+ 
+
+========================================
+
+=== PAGE 5 ===
+4 
+ 
+2. Tujuan dan Sasaran 
+2.1 Tujuan Utama 
+• Membangun sistem triase berbasis AI yang membantu FKTP memprioritaskan pasien 
+secara lebih cepat, konsisten, dan akurat dibanding penilaian manual semata. 
+• Mengurangi kesenjangan akses layanan kesehatan primer akibat keterbatasan jumlah dan 
+distribusi tenaga medis di Indonesia. 
+• Mendistribusikan beban pasien secara lebih merata antar fasilitas kesehatan dalam satu 
+jaringan rujukan, sehingga kapasitas yang tersedia dapat dimanfaatkan optimal. 
+2.2 Sasaran 
+• Penerima manfaat langsung: tenaga medis dan staf pendaftaran di Puskesmas/klinik 
+pratama (FKTP), khususnya di wilayah dengan rasio dokter-pasien rendah. 
+• Penerima manfaat tidak langsung: pasien yang mendapat kepastian prioritas layanan sesuai 
+urgensi kondisinya, serta Dinas Kesehatan sebagai pemangku kebijakan yang memperoleh 
+data mutu layanan yang lebih akurat. 
+ 
+ 
+
+========================================
+
+=== PAGE 6 ===
+5 
+ 
+3. Konsep Solusi 
+3.1 Deskripsi Solusi dan Fitur Utama 
+S-Triage mengatasi ketiga akar masalah pada Bagian 1 melalui tiga fitur inti yang saling 
+terhubung dalam satu alur kerja: 
+a. AI Triage dan Prioritas — Pasien atau perawat menginput keluhan dalam bentuk teks bebas. 
+Sistem mengekstraksi gejala dan mengklasifikasikan tingkat urgensi ke dalam tiga kategori: 
+Merah (darurat), Kuning (perlu penanganan cepat), dan Hijau (dapat menunggu antrean normal). 
+Hasil klasifikasi berperan sebagai rekomendasi, bukan keputusan final — tenaga medis tetap 
+memiliki kendali penuh untuk menyetujui atau mengubah prioritas yang disarankan sistem. 
+b. Smart Routing Internal — Setelah pasien diprioritaskan, sistem secara otomatis 
+merekomendasikan antrean ke dokter umum atau spesialis yang sesuai dengan keluhan pasien 
+dan sedang berstatus tersedia, menghilangkan proses pencocokan manual yang selama ini 
+bergantung pada ingatan staf meja depan. 
+c. Rujukan Eksternal (Load Balancing) — Apabila klinik tidak lagi sanggup menampung 
+pasien baru, sistem merekomendasikan rujukan ke faskes mitra terdekat yang masih memiliki 
+kapasitas tersedia, berdasarkan data status kapasitas yang diperbarui berkala. 
+3.2 Keunikan dan Inovasi Dibanding Pendekatan yang Ada 
+Berbeda dari aplikasi antrean konvensional yang hanya menyusun urutan berdasarkan waktu 
+kedatangan (first-come-first-served), S-Triage menempatkan urgensi klinis sebagai dasar 
+prioritas, sekaligus menjadi satu-satunya lapisan yang menghubungkan tiga hal sekaligus dalam 
+satu alur: penilaian urgensi, penjadwalan tenaga medis internal, dan keseimbangan beban antar 
+faskes dalam satu jaringan — sesuatu yang belum ditawarkan oleh sistem antrean rumah 
+sakit/klinik pada umumnya di Indonesia. 
+3.3 Mekanisme AI (Alur Sistem, Peran AI, dan Logika Solusi) 
+Untuk memenuhi Ketentuan Khusus Kompetisi & AI pada guidebook — bahwa model AI tidak 
+boleh sekadar dipakai sebagai pre-trained model instan tanpa proses pengembangan — 
+komponen AI pada S-Triage dikembangkan melalui: 
+• Kurasi dan modifikasi dataset gejala berbahasa Indonesia (hasil anonimisasi data 
+simulasi/publik) yang disesuaikan dengan istilah dan pola bahasa pasien di FKTP, karena 
+dataset klasifikasi urgensi yang tersedia secara publik umumnya berbahasa Inggris. 
+
+========================================
+
+=== PAGE 7 ===
+6 
+ 
+• Fine-tuning model klasifikasi teks pada dataset yang telah dikurasi tersebut, untuk 
+memetakan gejala ke tiga kategori urgensi (Merah/Kuning/Hijau) mengacu pada logika 
+Emergency Severity Index (ESI) yang diadaptasi. 
+• Perancangan algoritma skoring tambahan (bukan hanya output mentah model) yang 
+mengombinasikan hasil klasifikasi gejala dengan faktor lain seperti usia dan riwayat 
+kunjungan, sebagai lapisan logika bisnis orisinal di atas model AI. 
+Alur sistem secara garis besar: (1) pasien/petugas memasukkan keluhan → (2) model AI hasil 
+fine-tuning mengklasifikasikan urgensi → (3) algoritma skoring menggabungkan hasil 
+klasifikasi dengan data pendukung → (4) sistem menyusun urutan antrean & merekomendasikan 
+dokter yang tersedia → (5) tenaga medis memverifikasi/mengoreksi hasil sebelum diteruskan ke 
+rekam medis. 
+3.4 Business Model Canvas (BMC) 
+S-Triage mengadopsi model B2B SaaS Subscription dengan lapisan pendapatan tambahan dari 
+jaringan rujukan mitra, dirancang agar setiap pihak dalam ekosistem memiliki insentif yang jelas 
+untuk berpartisipasi. 
+Blok BMC 
+Penjelasan 
+Key Partners 
+Dinas Kesehatan Kabupaten/Kota, jaringan Puskesmas & 
+klinik mitra, penyedia layanan cloud, serta program 
+digitalisasi kesehatan primer Kemenkes (mis. SATUSEHAT) 
+sebagai jalur distribusi jangka panjang. 
+Key Activities 
+Pengembangan & pemeliharaan model AI triase, kurasi 
+dataset gejala berbahasa Indonesia, onboarding FKTP baru, 
+pemeliharaan sistem, dan pelaporan kepatuhan data kesehatan. 
+Key Resources 
+Model AI triase (hasil fine-tuning), dataset gejala terkurasi, 
+infrastruktur cloud, tim pengembang, dan basis data faskes 
+mitra. 
+Value Propositions 
+Antrean lebih adil & tepat sasaran, mengurangi risiko 
+keterlambatan penanganan kasus darurat, efisiensi operasional 
+tanpa menambah staf, dan distribusi beban pasien yang lebih 
+merata antar faskes. 
+
+========================================
+
+=== PAGE 8 ===
+7 
+ 
+Customer Relationships 
+Onboarding & pelatihan penggunaan sistem untuk staf FKTP, 
+dukungan teknis berkelanjutan, dan sesi evaluasi berkala 
+bersama Dinas Kesehatan. 
+Channels 
+Kerja sama langsung dengan Dinas Kesehatan daerah, 
+presentasi ke asosiasi klinik/FKTP swasta, serta partisipasi 
+dalam program transformasi digital kesehatan primer. 
+Customer Segments 
+Puskesmas dan klinik pratama (FKTP) skala kecil-menengah, 
+terutama di wilayah dengan rasio dokter-pasien rendah; 
+jaringan faskes mitra dalam satu wilayah rujukan. 
+Cost Structure 
+Biaya komputasi model AI, hosting & infrastruktur cloud, 
+pengembangan & pemeliharaan aplikasi, serta biaya 
+onboarding dan pelatihan pengguna. 
+Revenue Streams 
+(1) Model Freemium: versi dasar gratis untuk FKTP 
+kecil/daerah 3T, fitur lanjutan (analitik, integrasi rujukan) 
+berbayar; (2) Langganan SaaS bertingkat untuk FKTP skala 
+menengah-besar; (3) Fee akuisisi pasien dari faskes mitra saat 
+menerima rujukan melalui sistem. 
+ 
+3.5 Ilustrasi Simulasi Nilai bagi Klinik (FKTP skala kecil-menengah) 
+Catatan: Angka pada tabel merupakan ilustrasi awal untuk keperluan proposal dan perlu 
+divalidasi lebih lanjut melalui wawancara dengan pengelola klinik/puskesmas pada tahap 
+pengembangan berikutnya. 
+Komponen 
+Estimasi 
+Biaya langganan S-Triage / bulan 
+Rp 300.000 – Rp 750.000 (tergantung 
+tier) 
+Estimasi biaya 1 staf tambahan meja depan / bulan 
+> Rp 2.000.000 
+Potensi tambahan pasien tertangani / hari (efisiensi 
+antrean) 
+10–20% dari kapasitas saat ini 
+
+========================================
+
+=== PAGE 9 ===
+8 
+ 
+4. Desain dan Prototipe Solusi 
+4.1 Alur Pengguna (User Flow) 
+Alur utama pengguna pada sisi FKTP: Pasien datang → Petugas membuka S-Triage → Input 
+keluhan pasien (teks) → Sistem menampilkan kategori urgensi & rekomendasi dokter → Petugas 
+memverifikasi/menyesuaikan → Pasien masuk ke antrean sesuai prioritas → (jika kapasitas 
+penuh) sistem menyarankan opsi rujukan ke faskes mitar terdekat → Dashboard memperbarui 
+status antrean secara real-time bagi seluruh staf. 
+4.2 Arsitektur Sistem dan Tech Stack (Rencana) 
+• Frontend: Web app responsif untuk staf pendaftaran & dashboard dokter. 
+• Backend: REST API untuk alur triase, routing, dan manajemen data faskes mitra. 
+• Lapisan AI: model klasifikasi teks hasil fine-tuning + modul algoritma skoring urgensi. 
+• Basis data: penyimpanan data pasien (anonim/sesuai etika data kesehatan), status kapasitas 
+faskes, dan log antrean. 
+• Deployment: platform cloud (mis. GCP/AWS/Vercel sesuai ketentuan guidebook untuk 
+Babak Final). 
+ 
+ 
+ 
+
+========================================
+
+=== PAGE 10 ===
+9 
+ 
+4.3 Diagram Arsitektur Sistem, Alur Proses, dan Wireframe / Mock-up (Rencana) 
+Diagram Arsitektur Sistem: 
+ 
+ 
+Diagram Alur Proses (User Flow): 
+ 
+ 
+ 
+ 
+
+========================================
+
+=== PAGE 11 ===
+10 
+ 
+Wireframe / Mock-up layar halaman (Rencana) 
+Halaman Login: 
+ 
+Halaman Dashboard: 
+ 
+
+========================================
+
+=== PAGE 12 ===
+11 
+ 
+Halaman Registrasi Triase: 
+ 
+Halaman Antrean Live: 
+ 
+
+========================================
+
+=== PAGE 13 ===
+12 
+ 
+Halaman Manajemen Dokter: 
+ 
+Halaman Rujukan: 
+ 
+
+========================================
+
+=== PAGE 14 ===
+13 
+ 
+Halaman Laporan Analitik: 
+ 
+Halaman Pengaturan: 
+ 
+
+========================================
+
+=== PAGE 15 ===
+14 
+ 
+5. Analisis Dampak dan Manfaat 
+5.1 Dampak Sosial 
+Mempercepat penanganan pasien dengan kondisi darurat melalui prioritas antrean yang lebih 
+akurat, sekaligus mengurangi risiko human error dalam proses triase manual yang menurut studi 
+mencapai lebih dari 50% ketidakakuratan pada beberapa fasilitas [7]. 
+5.2 Dampak Ekonomi 
+Efisiensi operasional FKTP tanpa perlu menambah staf meja depan (potensi penghematan biaya 
+operasional dibanding merekrut staf tambahan), serta potensi peningkatan jumlah pasien yang 
+dapat dilayani per hari melalui optimalisasi antrean. 
+5.3 Dampak terhadap Sistem Kesehatan 
+Mendorong distribusi beban pasien yang lebih merata antar faskes dalam satu wilayah rujukan, 
+sejalan dengan upaya pemerataan akses layanan kesehatan primer yang menjadi fokus tema 
+kompetisi. 
+5.4 Manfaat Spesifik bagi Target Pengguna 
+• Tenaga medis: alat bantu keputusan yang mengurangi beban kognitif saat menilai prioritas 
+pasien di tengah keterbatasan waktu. 
+• Pasien: kepastian bahwa kondisi mereka dinilai secara konsisten, tidak semata berdasarkan 
+urutan kedatangan. 
+• Dinas Kesehatan: data agregat mutu layanan (waktu tunggu, distribusi urgensi) yang dapat 
+mendukung perencanaan kebijakan. 
+ 
+ 
+
+========================================
+
+=== PAGE 16 ===
+15 
+ 
+6. Penutup 
+S-Triage menjawab langsung tiga akar masalah nyata di FKTP Indonesia — overcrowding, 
+human error dalam triase, dan blind routing antar faskes — melalui solusi AI yang tetap 
+menempatkan tenaga medis sebagai pengambil keputusan akhir (human-in-the-loop). 
+Relevansinya dengan tema “AI for All: Intelligent Solutions for an Equitable Future” terletak 
+pada fokusnya untuk memeratakan kualitas layanan kesehatan primer, khususnya di wilayah 
+dengan keterbatasan tenaga medis, tanpa mengorbankan aspek etika dan keselamatan pasien. 
+Ke depan, tim berharap dapat mengembangkan S-Triage lebih lanjut melalui integrasi data real-
+time dengan platform SATUSEHAT Kemenkes RI untuk status kapasitas faskes yang akurat 
+secara nasional, penambahan modul manajemen stok obat dan inventaris, perluasan jaringan 
+faskes mitra melalui kemitraan resmi dengan Dinas Kesehatan daerah, serta pengembangan versi 
+mobile bagi pasien agar pendaftaran dan pemantauan status antrean dapat dilakukan dari jarak 
+jauh. 
+ 
+ 
+
+========================================
+
+=== PAGE 17 ===
+16 
+ 
+7. Daftar Pustaka 
+[1] Menteri Kesehatan Republik Indonesia. (2008). Keputusan Menteri Kesehatan Republik 
+Indonesia Nomor 129/Menkes/SK/II/2008 tentang Standar Pelayanan Minimal Rumah Sakit. 
+Jakarta: Kementerian Kesehatan RI. 
+[2] Adha Ruly Antoni, W. (2025). Tinjauan Waktu Tunggu Pasien Rawat Jalan di Puskesmas 
+Gamping 1 Sleman Tahun 2025 [Karya Tulis Ilmiah/Diploma thesis]. Poltekkes Kemenkes 
+Yogyakarta. https://eprints.poltekkesjogja.ac.id/21512/ 
+[3] Ombudsman RI Perwakilan Papua Barat. (2025, 5 Mei). Ombudsman Papua Barat Sidak di 
+Puskesmas Maripi, Kabupaten Manokwari, Dorong Pelayanan Publik yang Efektif. 
+https://ombudsman.go.id/perwakilan/news/r/pwk--ombudsman-papua-barat-sidak-di-puskesmas-
+maripi-kabupaten-manokwari-dorong-pelayanan-publik-yang-efektif 
+[4] Ombudsman RI Perwakilan Nusa Tenggara Timur. (2025, 15 Oktober). Ombudsman NTT 
+Dorong Peningkatan Kualitas Layanan dan Penyusunan Standar Pelayanan di Puskesmas 
+Manutapen. https://ombudsman.go.id/perwakilan/news/r/pwk--ombudsman-ntt-dorong-
+peningkatan-kualitas-layanan-dan-penyusunan-standar-pelayanan-di-puskesmas-manutapen 
+[5] Ombudsman RI Perwakilan Sulawesi Barat. (2025, 5 Agustus). Ombudsman Sulbar Soroti 
+Dugaan Kelalaian Penanganan Pasien di Puskesmas Nosu. 
+https://ombudsman.go.id/perwakilan/news/r/pwk--ombudsman-sulbar-soroti-dugaan-kelalaian-
+penanganan-pasien-di-puskesmas-nosu 
+[6] RRI Takengon. (2025, 31 Oktober). Membludaknya Pasien RSUD Datu Beru, Bupati Turun 
+Tangan. https://rri.co.id/takengon/info-pemda/1943985/membludaknya-pasien-rsud-datu-beru-
+bupati-turun-tangan 
+[7] Sensi, G. N. (2021). Faktor Faktor yang Berhubungan dengan Pelaksanaan Triase di 
+Instalasi Gawat Darurat Rumah Sakit Advent Bandung [Tesis]. Universitas Padjadjaran. 
+https://kandaga.unpad.ac.id/koleksi/repository/item/220120210012 
+[8] Evie dkk. (2016), sebagaimana dikutip dalam Kuddus (2019), dalam kajian ketepatan 
+pelaksanaan triase di RS Tipe C Malang. 
+
+========================================
+
+=== PAGE 18 ===
+17 
+ 
+8. Lampiran 
+8.1 Ruang Lingkup dan Batasan MVP 
+Mengingat keterbatasan waktu pengembangan selama sesi karantina Babak Final (20 jam non-
+stop), tim menetapkan ruang lingkup MVP (Minimum Viable Product) secara sadar dan terukur 
+sebagai berikut: 
+• Fokus MVP adalah tiga fitur inti: AI Triage, Smart Routing Internal, dan Rujukan 
+Eksternal, sebagaimana dijabarkan pada Bagian 3.1. 
+• Fitur manajemen stok obat/inventaris sengaja tidak dimasukkan ke dalam cakupan MVP ini, 
+untuk menjaga fokus tim pada penyempurnaan alur triase dan rujukan sebagai nilai jual 
+utama. 
+• Data status kapasitas faskes mitra pada tahap demo bersifat simulasi (dapat diubah 
+statusnya secara manual oleh admin), karena integrasi real-time dengan sistem faskes lain 
+(misalnya SATUSEHAT) memerlukan kerja sama data yang berada di luar cakupan waktu 
+hackathon. 
+• Klasifikasi AI Triage berfungsi sebagai rekomendasi pendukung keputusan, dengan opsi 
+verifikasi dan override manual oleh tenaga medis pada setiap tahap. 
+8.2 Tim Pelaksana 
+Tim kami terdiri dari mahasiswa Universitas Sumatera Utara dengan pengalaman membangun 
+sistem manajemen berbasis Spring Boot, termasuk aplikasi manajemen apotek dan pencatatan 
+keuangan, yang relevan langsung dengan kebutuhan teknis S-Triage. 
+Nama 
+Program Studi 
+Peran dalam Tim 
+Christein Akadojuanrich 
+Habayaki Purba [241401012] 
+Ilmu Komputer, USU 
+Backend & Integrasi AI 
+El Fahreza Sufi [241401042] 
+Ilmu Komputer, USU 
+Frontend & UI/UX 
+Akief Maulana Aulia 
+[241401072] – (Ketua Tim) 
+Ilmu Komputer, USU 
+Database & Deployment 
+ 
+ 
+
+========================================
+

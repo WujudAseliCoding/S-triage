@@ -6,6 +6,7 @@ import NotFoundPage from '../pages/NotFoundPage';
 
 // Halaman petugas faskes (desktop)
 import LoginPage from '../pages/staff/LoginPage';
+import RegisterPage from '../pages/staff/RegisterPage';
 import DashboardPage from '../pages/staff/DashboardPage';
 import TriageRegistrationPage from '../pages/staff/TriageRegistrationPage';
 import LiveQueuePage from '../pages/staff/LiveQueuePage';
@@ -30,6 +31,7 @@ export default function AppRoutes() {
 
       {/* Publik: login petugas */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/daftar" element={<RegisterPage />} />
 
       {/* Terproteksi: petugas faskes */}
       <Route element={<ProtectedRoute />}>

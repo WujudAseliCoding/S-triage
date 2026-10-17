@@ -1,10 +1,11 @@
 import { z } from 'zod';
 
+export const PASSWORD_MIN_LENGTH = 8;
+
 export const registerSchema = z.object({
-  nama: z.string().min(3, 'Nama minimal 3 karakter'),
-  email: z.string().email('Format email tidak valid'),
-  password: z.string().min(6, 'Password minimal 6 karakter'),
-  role: z.enum(['ADMIN', 'DOKTER', 'PERAWAT']).optional(),
+  nama: z.string().trim().min(3, 'Nama minimal 3 karakter'),
+  email: z.string().trim().email('Format email tidak valid'),
+  password: z.string().min(PASSWORD_MIN_LENGTH, `Password minimal ${PASSWORD_MIN_LENGTH} karakter`),
 });
 
 export const loginSchema = z.object({
