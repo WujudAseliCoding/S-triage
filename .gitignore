@@ -27,5 +27,8 @@ backend/public/uploads/*
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
+
+# Documentation & Assets
+docs/
+mockup/
