@@ -4,8 +4,10 @@ import authRoutes from './auth.routes.js';
 import {
   registerTriagePatient,
   getTriagePatients,
-  getTriagePatientById
+  getTriagePatientById,
+  updateTriagePatient
 } from '../controllers/triage.controller.js';
+import { verifyToken } from '../middlewares/authMiddleware.js';
 import {
   getLiveQueue,
   callPatient,
@@ -44,9 +46,11 @@ router.get('/facilities', getFacilities);
 // === FOKUS B: CORE ENGINE TRIASE, INTEGRASI AI, & ANTREAN ===
 
 // Triage Patients Routes
+// Pendaftaran bersifat publik (pasien mengisi formulir via QR); data pasien hanya untuk petugas login.
 router.post('/triage/register', registerTriagePatient);
-router.get('/triage/patients', getTriagePatients);
-router.get('/triage/patients/:id', getTriagePatientById);
+router.get('/triage/patients', verifyToken, getTriagePatients);
+router.get('/triage/patients/:id', verifyToken, getTriagePatientById);
+router.put('/triage/patients/:id', verifyToken, updateTriagePatient);
 
 // Live Queue Routes
 router.get('/queue/live', getLiveQueue);

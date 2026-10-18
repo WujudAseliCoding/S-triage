@@ -55,6 +55,11 @@ export const TriagePatient = sequelize.define('TriagePatient', {
     allowNull: false,
     defaultValue: 'P3',
   },
+  // Rekomendasi prioritas asli dari AI (prioritas_triage = prioritas final yang ditetapkan petugas)
+  prioritas_ai: {
+    type: DataTypes.STRING(2),
+    allowNull: true,
+  },
   skor_urgensi: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -64,7 +69,17 @@ export const TriagePatient = sequelize.define('TriagePatient', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  // Asesmen petugas: nyeri, faktor relevan, tanda bahaya, riwayat penyakit
+  asesmen: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: {},
+  },
   catatan_petugas: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  alasan_override: {
     type: DataTypes.TEXT,
     allowNull: true,
   },
@@ -75,6 +90,14 @@ export const TriagePatient = sequelize.define('TriagePatient', {
   },
   petugas_verifikator_id: {
     type: DataTypes.UUID,
+    allowNull: true,
+  },
+  nama_verifikator: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  waktu_verifikasi: {
+    type: DataTypes.DATE,
     allowNull: true,
   },
 }, {
