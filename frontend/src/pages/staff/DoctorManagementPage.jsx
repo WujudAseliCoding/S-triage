@@ -10,7 +10,6 @@ import {
   Users,
   Stethoscope,
   RefreshCw,
-  User,
 } from 'lucide-react';
 import Avatar from '../../components/common/Avatar';
 import { buttonOutlineClass, buttonPrimaryClass, inputClass } from '../../utils/styles';
@@ -78,15 +77,14 @@ export default function DoctorManagementPage() {
 
   // Load Data Dokter & Perawat dari DB
   const loadData = async () => {
-    setIsLoading(true);
     try {
       const [doctorData, nurseData] = await Promise.all([getDoctors(), getNurses()]);
 
       if (doctorData && doctorData.length > 0) {
         setDoctors(doctorData);
-        if (!selectedId || !doctorData.some((d) => d.id === selectedId)) {
-          setSelectedId(doctorData[0].id);
-        }
+        setSelectedId((prev) =>
+          !prev || !doctorData.some((d) => d.id === prev) ? doctorData[0].id : prev,
+        );
       }
       if (nurseData) {
         setNurses(nurseData);
@@ -104,7 +102,9 @@ export default function DoctorManagementPage() {
   };
 
   useEffect(() => {
-    loadData();
+    // Defer ke tick berikutnya agar pemuatan awal tidak memicu setState sinkron di dalam effect.
+    const timer = setTimeout(loadData, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const allStaff = [...doctors, ...nurses];
@@ -247,7 +247,10 @@ export default function DoctorManagementPage() {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => {
+              setIsLoading(true);
+              loadData();
+            }}
             disabled={isLoading}
             className={`${buttonOutlineClass} text-xs py-2`}
             title="Refresh data dari database"

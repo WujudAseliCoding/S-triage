@@ -123,7 +123,6 @@ export default function ReferralPage() {
 
   // Load data awal dari database
   const loadData = async () => {
-    setIsLoading(true);
     try {
       const [facData, refData, triageData] = await Promise.all([
         getFacilities(),
@@ -149,7 +148,9 @@ export default function ReferralPage() {
   };
 
   useEffect(() => {
-    loadData();
+    // Defer ke tick berikutnya agar pemuatan awal tidak memicu setState sinkron di dalam effect.
+    const timer = setTimeout(loadData, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // Update form field
@@ -375,7 +376,10 @@ export default function ReferralPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => {
+              setIsLoading(true);
+              loadData();
+            }}
             disabled={isLoading}
             className={`${buttonOutlineClass} text-xs py-2`}
             title="Refresh data dari database"

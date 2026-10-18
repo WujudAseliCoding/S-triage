@@ -5,12 +5,12 @@ import api from '../services/api';
 // Auth hanya untuk petugas faskes. Pasien mengakses formulir & antrean tanpa login.
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Bila tidak ada token, tidak ada verifikasi yang berjalan → langsung selesai memuat.
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
-      setLoading(false);
       return;
     }
     // Verifikasi token ke backend: ambil data user terkini dari /api/auth/me
