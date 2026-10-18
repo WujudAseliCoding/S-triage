@@ -103,6 +103,9 @@ export default function PatientFormPage() {
       const res = await registerTriagePatient(payload);
       const nomorAntrean = res?.queue?.nomor_antrean || '-';
       const referensi = `REG-${String(res?.patient?.id ?? '').slice(0, 8).toUpperCase()}`;
+      // Klasifikasi triase dari backend (P1→merah, P2→kuning, P3/P0→hijau)
+      const prioritas = res?.patient?.prioritas_triage;
+      const priority = prioritas === 'P1' ? 'merah' : prioritas === 'P2' ? 'kuning' : 'hijau';
 
       navigate('/antrean', {
         state: {
@@ -110,6 +113,7 @@ export default function PatientFormPage() {
             ...data,
             nomorAntrean,
             referensi,
+            priority,
           },
         },
       });
