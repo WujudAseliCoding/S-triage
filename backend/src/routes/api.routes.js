@@ -3,8 +3,10 @@ import { getStatus, getHealth } from '../controllers/api.controller.js';
 import authRoutes from './auth.routes.js';
 import {
   registerTriagePatient,
+  patientIntake,
   getTriagePatients,
-  getTriagePatientById
+  getTriagePatientById,
+  verifyTriagePatient
 } from '../controllers/triage.controller.js';
 import {
   getLiveQueue,
@@ -32,8 +34,10 @@ router.use('/auth', authRoutes);
 
 // Triage Patients Routes
 router.post('/triage/register', registerTriagePatient);
+router.post('/triage/intake', patientIntake);
 router.get('/triage/patients', getTriagePatients);
 router.get('/triage/patients/:id', getTriagePatientById);
+router.put('/triage/patients/:id/verify', verifyTriagePatient);
 
 // Live Queue Routes
 router.get('/queue/live', getLiveQueue);

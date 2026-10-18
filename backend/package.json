@@ -6,7 +6,10 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch --watch-path=src --watch-path=.env src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:rules": "node --test \"test/triage/*.test.js\"",
+    "eval": "node test/evaluation/runEvaluation.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

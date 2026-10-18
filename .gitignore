@@ -19,6 +19,12 @@ dist-ssr
 backend/public/uploads/*
 !backend/public/uploads/.gitkeep
 
+# Third-party reference documents (copyrighted; keep local, do not commit publicly)
+docs/reference/
+
+# Local evaluation artifacts
+backend/test/evaluation/*.out.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

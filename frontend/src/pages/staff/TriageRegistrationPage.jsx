@@ -1,6 +1,7 @@
 import Card from '../../components/common/Card';
 import FormField from '../../components/common/FormField';
 import PriorityBadge from '../../components/common/PriorityBadge';
+import TriageClassificationPanel from '../../components/staff/TriageClassificationPanel';
 import { TriangleAlert } from 'lucide-react';
 import { buttonOutlineClass, inputClass } from '../../utils/styles';
 
@@ -140,6 +141,8 @@ export default function TriageRegistrationPage() {
       </div>
 
       <div className="space-y-6 xl:col-span-2">
+        <TriageClassificationPanel />
+
         <Card
           title="Asesmen & prioritas"
           subtitle="AI belum tervalidasi klinis. Gunakan sebagai bantuan, bukan penentu triase akhir."

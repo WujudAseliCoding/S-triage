@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const PATIENT_FORM_INITIAL = {
   untuk: 'sendiri',
   nama: '',
+  jenisKelamin: '',
   umur: '',
   satuanUmur: 'Tahun',
   pakaiTanggalLahir: false,
@@ -18,6 +19,7 @@ export const PATIENT_FORM_INITIAL = {
 // Ringkasan singkat untuk kotak "Periksa n isian berikut" (pesan inline ada di schema).
 export const PATIENT_FORM_SUMMARY = {
   nama: 'Nama lengkap belum diisi.',
+  jenisKelamin: 'Jenis kelamin belum dipilih.',
   umur: 'Umur belum diisi dengan benar.',
   tanggalLahir: 'Tanggal lahir belum diisi dengan benar.',
   nik: 'NIK belum 16 digit.',
@@ -28,6 +30,7 @@ export const patientFormSchema = z
   .object({
     untuk: z.enum(['sendiri', 'keluarga']),
     nama: z.string().trim().min(1, 'Isi nama lengkap pasien.'),
+    jenisKelamin: z.enum(['L', 'P'], { message: 'Pilih jenis kelamin pasien.' }),
     umur: z.string().trim(),
     satuanUmur: z.enum(['Tahun', 'Bulan', 'Hari']),
     pakaiTanggalLahir: z.boolean(),

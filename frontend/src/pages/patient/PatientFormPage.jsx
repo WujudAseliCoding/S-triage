@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
 import FormField from '../../components/common/FormField';
 import EmergencyBox from '../../components/patient/EmergencyBox';
 import { AGE_UNITS } from '../../utils/constants';
+import { submitPatientIntake } from '../../services/triageService';
 import {
   PATIENT_FORM_INITIAL,
   PATIENT_FORM_SUMMARY,
@@ -12,6 +13,18 @@ import {
 import { inputClass } from '../../utils/styles';
 
 const checkboxClass = 'size-5 shrink-0 rounded border-slate-300 accent-brand-700';
+
+// Map the form's age input to { umur, satuan_umur }, preferring days/months for babies.
+function deriveAge(values) {
+  if (values.pakaiTanggalLahir && values.tanggalLahir) {
+    const birth = new Date(values.tanggalLahir);
+    const days = Math.floor((Date.now() - birth.getTime()) / 86400000);
+    if (days < 31) return { umur: Math.max(days, 1), satuan_umur: 'Hari' };
+    if (days < 365) return { umur: Math.max(Math.floor(days / 30.4375), 1), satuan_umur: 'Bulan' };
+    return { umur: Math.floor(days / 365.25), satuan_umur: 'Tahun' };
+  }
+  return { umur: Number(values.umur), satuan_umur: values.satuanUmur };
+}
 
 function SectionCard({ number, title, subtitle, children }) {
   return (
@@ -32,6 +45,8 @@ export default function PatientFormPage() {
   const navigate = useNavigate();
   const [values, setValues] = useState(PATIENT_FORM_INITIAL);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   const errorKeys = Object.keys(errors);
 
@@ -45,8 +60,9 @@ export default function PatientFormPage() {
     });
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    setSubmitError(null);
     const result = patientFormSchema.safeParse(values);
 
     if (!result.success) {
@@ -59,9 +75,30 @@ export default function PatientFormPage() {
       return;
     }
 
-    // TODO: Kirim ke backend lewat services/ (POST /api/pengajuan) dan pakai referensi dari server.
-    const referensi = `SIM-2026-${String(Date.now()).slice(-3)}`;
-    navigate('/antrean', { state: { submission: { ...result.data, referensi } } });
+    const { umur, satuan_umur } = deriveAge(result.data);
+    try {
+      setSubmitting(true);
+      const data = await submitPatientIntake({
+        nama_pasien: result.data.nama,
+        umur,
+        satuan_umur,
+        jenis_kelamin: result.data.jenisKelamin,
+        keluhan_utama: result.data.keluhan,
+        tanda_vital: {},
+      });
+      // Patient view never receives the AI classification.
+      navigate('/antrean', {
+        state: { submission: { ...result.data, referensi: data.referensi } },
+      });
+    } catch (error) {
+      setSubmitError(
+        error?.response?.data?.message ||
+          'Pengajuan gagal terkirim. Periksa koneksi lalu coba lagi, atau lapor petugas.',
+      );
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -91,6 +128,16 @@ export default function PatientFormPage() {
           </ul>
           <p className="mt-2 text-xs text-red-700">
             Belum terkirim. Umur dan isian lain tetap tersimpan pada formulir ini.
+          </p>
+        </div>
+      )}
+
+      {submitError && (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4" role="alert">
+          <p className="text-sm font-bold text-red-700">Pengajuan tidak terkirim</p>
+          <p className="mt-1 text-sm text-red-700">{submitError}</p>
+          <p className="mt-2 text-xs text-red-700">
+            Jika kondisi memburuk, jangan menunggu — segera minta bantuan petugas.
           </p>
         </div>
       )}
@@ -135,6 +182,35 @@ export default function PatientFormPage() {
             className={inputClass(Boolean(errors.nama))}
           />
         </FormField>
+
+        <fieldset aria-invalid={Boolean(errors.jenisKelamin)}>
+          <legend className="mb-2 text-sm font-semibold text-slate-800">
+            Jenis kelamin <span className="text-xs font-normal text-slate-500">Wajib</span>
+          </legend>
+          <div className="flex gap-6">
+            {[
+              ['L', 'Laki-laki'],
+              ['P', 'Perempuan'],
+            ].map(([value, label]) => (
+              <label key={value} className="flex items-center gap-3 text-sm text-slate-800">
+                <input
+                  type="radio"
+                  name="jenis-kelamin"
+                  value={value}
+                  checked={values.jenisKelamin === value}
+                  onChange={() => setField('jenisKelamin', value)}
+                  className="size-5 accent-brand-700"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          {errors.jenisKelamin && (
+            <p className="mt-2 text-sm font-medium text-red-700" role="alert">
+              {errors.jenisKelamin}
+            </p>
+          )}
+        </fieldset>
 
         {values.pakaiTanggalLahir ? (
           <FormField label="Tanggal lahir" tag="Wajib" htmlFor="tanggal-lahir" error={errors.tanggalLahir}>
@@ -337,9 +413,10 @@ export default function PatientFormPage() {
         </p>
         <button
           type="submit"
-          className="mt-4 w-full rounded-xl bg-brand-700 px-4 py-4 text-base font-bold text-white transition hover:bg-brand-800"
+          disabled={submitting}
+          className="mt-4 w-full rounded-xl bg-brand-700 px-4 py-4 text-base font-bold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Kirim keluhan
+          {submitting ? 'Mengirim…' : 'Kirim keluhan'}
         </button>
         <p className="mt-4 text-sm leading-relaxed text-slate-500">
           Pengiriman tidak menentukan prioritas triase atau nomor antrean. Kondisi pasien dinilai

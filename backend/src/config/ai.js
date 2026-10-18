@@ -1,140 +1,93 @@
 import 'dotenv/config';
 
-const WAY_API_URL = process.env.WAY_API_URL || 'https://api-way.gutech.dev/v1/chat/completions';
-const WAY_API_KEY = process.env.WAY_API_KEY || '';
-const WAY_API_MODEL = process.env.WAY_API_MODEL || 'gutech/fast';
+/**
+ * Low-level Way (Gutech) AI Gateway client.
+ *
+ * Only backend-side code uses this; the API key is read from the backend
+ * environment (WAY_API_KEY) and is never exposed to the frontend. Secrets and
+ * patient-identifying data are never logged.
+ */
+
+export const AI_GATEWAY = {
+  url: process.env.WAY_API_URL || 'https://api-way.gutech.dev/v1/chat/completions',
+  model: process.env.WAY_API_MODEL || 'gutech/fast',
+  get hasKey() {
+    return Boolean(process.env.WAY_API_KEY);
+  },
+};
+
+export const DEFAULT_TIMEOUT_MS = Number(process.env.WAY_API_TIMEOUT_MS || 12000);
 
 /**
- * Menganalisis keluhan pasien menggunakan Way AI Gateway.
- * 
- * @param {string} keluhan - Keluhan medis pasien
- * @param {object} vitalSigns - Tanda-tanda vital (opsional)
- * @returns {Promise<{prioritas_triage: string, skor_urgensi: number, analisis_ai: string}>}
+ * Call the gateway chat-completions endpoint.
+ * @throws {Error} on timeout, non-2xx response, or malformed envelope.
+ * @returns {Promise<string>} the assistant message content.
  */
-export const analyzeTriageWithAI = async (keluhan, vitalSigns = {}) => {
-  if (!WAY_API_KEY) {
-    console.warn('⚠️  WAY_API_KEY tidak diset. Menggunakan fallback analisis lokal.');
-    return fallbackTriageAnalysis(keluhan, vitalSigns);
+export async function callWayGateway({ messages, temperature = 0, timeoutMs = DEFAULT_TIMEOUT_MS, responseFormat = { type: 'json_object' } }) {
+  if (!AI_GATEWAY.hasKey) {
+    const err = new Error('WAY_API_KEY tidak diset.');
+    err.code = 'NO_API_KEY';
+    throw err;
   }
 
-  const prompt = `
-Anda adalah AI Asisten Medis Triase di Fasilitas Kesehatan Tingkat Pertama (FKTP).
-Tugas Anda adalah menganalisis keluhan utama pasien dan tanda-tanda vitalnya, lalu mengklasifikasikannya ke dalam tingkat prioritas triase dan memberikan skor urgensi klinis.
-
-Kriteria Prioritas Triase:
-- P1 (Gawat Darurat / Merah): Mengancam nyawa, perlu penanganan segera tanpa ditunda (misal: henti jantung, sesak napas berat, tidak sadar, nyeri dada hebat, perdarahan masif, syok).
-- P2 (Darurat Tidak Gawat / Kuning): Potensi bahaya tinggi tapi tidak mengancam nyawa langsung, perlu penanganan cepat dalam 10-30 menit (misal: patah tulang tertutup, nyeri sedang-berat, sesak napas ringan, demam sangat tinggi pada anak).
-- P3 (Tidak Gawat Tidak Darurat / Hijau): Kondisi ringan, dapat mengantre secara normal (misal: batuk, pilek ringan, pusing ringan, gatal-gatal, luka lecet ringan).
-- P0 (Meninggal / Hitam): Datang dalam kondisi sudah tidak bernyawa.
-
-Skor Urgensi:
-Kombinasi skala 1 sampai 5 (1 untuk kondisi paling ringan/P3, 5 untuk kondisi paling kritis/P1).
-
-Informasi Pasien:
-Keluhan Utama: "${keluhan}"
-Tanda-Tanda Vital: ${JSON.stringify(vitalSigns)}
-
-Format Output HARUS dalam bentuk JSON murni (tanpa markdown, tanpa tambahan teks pembuka/penutup) dengan struktur:
-{
-  "prioritas_triage": "P1" | "P2" | "P3" | "P0",
-  "skor_urgensi": number (1-5),
-  "analisis_ai": "Penjelasan klinis singkat dalam Bahasa Indonesia (maksimal 2 kalimat)"
-}
-`;
-
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(WAY_API_URL, {
+    const response = await fetch(AI_GATEWAY.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${WAY_API_KEY}`,
+        Authorization: `Bearer ${process.env.WAY_API_KEY}`,
       },
       body: JSON.stringify({
-        model: WAY_API_MODEL,
-        messages: [
-          { role: 'system', content: 'Anda adalah sistem analisis triase medis ahli yang hanya merespon dalam format JSON terstruktur.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,
-        response_format: { type: 'json_object' }
+        model: AI_GATEWAY.model,
+        messages,
+        temperature,
+        ...(responseFormat ? { response_format: responseFormat } : {}),
       }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
-      throw new Error(`AI Gateway error! Status: ${response.status}`);
+      const error = new Error(`AI gateway error status ${response.status}`);
+      error.code = 'GATEWAY_HTTP_ERROR';
+      error.status = response.status;
+      throw error;
     }
 
     const data = await response.json();
-    const aiMessage = data.choices[0].message.content;
-    
-    // Parse JSON yang dikembalikan oleh AI
-    const parsedResult = JSON.parse(aiMessage.trim());
-    
-    return {
-      prioritas_triage: parsedResult.prioritas_triage || 'P3',
-      skor_urgensi: Number(parsedResult.skor_urgensi) || 1,
-      analisis_ai: parsedResult.analisis_ai || 'Analisis otomatis berhasil diproses.'
-    };
+    const content = data?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) {
+      const error = new Error('AI gateway mengembalikan respons kosong.');
+      error.code = 'EMPTY_RESPONSE';
+      throw error;
+    }
+    return content;
   } catch (error) {
-    console.error('❌ Error saat menghubungi Way AI Gateway:', error.message);
-    return fallbackTriageAnalysis(keluhan, vitalSigns);
+    if (error.name === 'AbortError') {
+      const timeout = new Error('Permintaan ke AI gateway melebihi batas waktu.');
+      timeout.code = 'TIMEOUT';
+      throw timeout;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
-};
+}
 
 /**
- * Fallback Rule-based Triage Analysis (jika API key tidak diisi atau request gagal)
+ * @deprecated The LLM must not select the final triage category.
+ * Kept only for backward compatibility with older callers. New code must use
+ * `classifyPatient` from services/triage/classificationService.js.
  */
-const fallbackTriageAnalysis = (keluhan, vitalSigns = {}) => {
-  const lowercaseKeluhan = keluhan.toLowerCase();
-  let prioritas_triage = 'P3';
-  let skor_urgensi = 1;
-  let analisis_ai = 'Analisis diproses menggunakan sistem penapisan cadangan berbasis kata kunci.';
-
-  // P0 - Meninggal
-  if (lowercaseKeluhan.includes('meninggal') || lowercaseKeluhan.includes('mati') || lowercaseKeluhan.includes('tidak bernyawa')) {
-    prioritas_triage = 'P0';
-    skor_urgensi = 5;
-    analisis_ai = 'Pasien dicurigai tiba dalam kondisi tidak bernyawa (P0/Hitam) berdasarkan kata kunci keluhan.';
-  }
-  // P1 - Gawat Darurat
-  else if (
-    lowercaseKeluhan.includes('sesak napas berat') || 
-    lowercaseKeluhan.includes('nyeri dada kiri') || 
-    lowercaseKeluhan.includes('jantung') || 
-    lowercaseKeluhan.includes('tidak sadar') || 
-    lowercaseKeluhan.includes('pingsan') || 
-    lowercaseKeluhan.includes('kejang') || 
-    lowercaseKeluhan.includes('perdarahan hebat') ||
-    (vitalSigns.spo2 && vitalSigns.spo2 < 90)
-  ) {
-    prioritas_triage = 'P1';
-    skor_urgensi = 5;
-    analisis_ai = 'Pasien dikategorikan Gawat Darurat (P1/Merah) karena terdeteksi gejala kritis mengancam nyawa.';
-  }
-  // P2 - Urgen Tidak Gawat
-  else if (
-    lowercaseKeluhan.includes('sesak') || 
-    lowercaseKeluhan.includes('nyeri hebat') || 
-    lowercaseKeluhan.includes('patah tulang') || 
-    lowercaseKeluhan.includes('fraktur') || 
-    lowercaseKeluhan.includes('luka bakar') || 
-    lowercaseKeluhan.includes('asma') ||
-    (vitalSigns.suhu && vitalSigns.suhu >= 39)
-  ) {
-    prioritas_triage = 'P2';
-    skor_urgensi = 3;
-    analisis_ai = 'Pasien dikategorikan Darurat Tidak Gawat (P2/Kuning) karena terdapat indikasi nyeri hebat atau cedera fisik sedang-berat.';
-  }
-  // P3 - Non-Urgen
-  else {
-    prioritas_triage = 'P3';
-    skor_urgensi = 1;
-    analisis_ai = 'Pasien dikategorikan Tidak Gawat Tidak Darurat (P3/Hijau) karena keluhan mengarah pada gejala ringan/biasa.';
-  }
-
+export const analyzeTriageWithAI = async (keluhan, vitalSigns = {}) => {
+  const { classifyPatient } = await import('../services/triage/classificationService.js');
+  const result = await classifyPatient({ nama_pasien: '', umur: 0, keluhan_utama: keluhan, tanda_vital: vitalSigns });
   return {
-    prioritas_triage,
-    skor_urgensi,
-    analisis_ai
+    prioritas_triage: result.classification.queue_category,
+    skor_urgensi: result.classification.queue_category === 'P1' ? 5 : result.classification.queue_category === 'P2' ? 3 : 1,
+    analisis_ai: result.classification.alasan_esi,
   };
 };
+
+export default { AI_GATEWAY, callWayGateway, analyzeTriageWithAI };
