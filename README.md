@@ -175,5 +175,18 @@ Untuk menguji fitur portal petugas, gunakan salah satu akun demo berikut (passwo
 
 ---
 
+## 👥 Tim Pengembang (Owner)
+
+Proyek ini dikembangkan dan dikelola oleh tim **Loncat ga nih?**:
+
+| No | Nama Anggota | Peran / Tanggung Jawab |
+| :---: | :--- | :--- |
+| 1 | **Akief Maulana Aulia** | Ketua Tim |
+| 2 | **Christein Akadojuanrich Habayaki Purba** | Anggota Tim |
+| 3 | **El Fahreza Sufi** | Anggota Tim |
+
+---
+
 ## 📄 Lisensi & Kontribusi
 Proyek ini dikembangkan untuk kebutuhan akademik dan simulasi implementasi digitalisasi layanan gawat darurat faskes tingkat pertama / lanjutan. Silakan gunakan dan kembangkan sesuai ketentuan institusi.
+
