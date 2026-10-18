@@ -11,18 +11,19 @@ import { MENTAL_STATUS } from './extractionSchema.js';
  * with the AI recommendation.
  */
 
-const SATUAN = ['Tahun', 'Bulan', 'Hari'];
+const SATUAN_VALID = ['tahun', 'bulan', 'hari'];
 
-export function normalizeAge(umur, satuanUmur = 'Tahun') {
+export function normalizeAge(umur, satuanUmur = 'tahun') {
   const value = Number(umur);
   if (!Number.isFinite(value) || value <= 0) {
     return { age_years: null, age_months: null, age_days: null };
   }
-  const unit = SATUAN.includes(satuanUmur) ? satuanUmur : 'Tahun';
-  if (unit === 'Bulan') {
+  const raw = String(satuanUmur || 'tahun').toLowerCase();
+  const unit = SATUAN_VALID.includes(raw) ? raw : 'tahun';
+  if (unit === 'bulan') {
     return { age_years: value / 12, age_months: value, age_days: value * 30.4375 };
   }
-  if (unit === 'Hari') {
+  if (unit === 'hari') {
     return { age_years: value / 365.25, age_months: value / 30.4375, age_days: value };
   }
   return { age_years: value, age_months: value * 12, age_days: value * 365.25 };

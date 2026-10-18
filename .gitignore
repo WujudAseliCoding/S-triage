@@ -25,6 +25,9 @@ docs/reference/
 # Local evaluation artifacts
 backend/test/evaluation/*.out.json
 
+# Local duplicate clone (kept out of the repo; not part of the project layout)
+S-triage/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -2,24 +2,35 @@
 
 Rule version: `fkpt-adapted-2026.10.1`
 
-This documents the API changes made for the auditable AI classification flow, so
-the frontend and any other consumer can rely on a stable contract.
+This documents the API of the auditable AI classification flow, so the frontend
+and any other consumer can rely on a stable contract.
+
+> This contract reflects the merged integration: the deterministic classification
+> pipeline (audit fields, `/intake`, `/verify`) coexists with the staff
+> edit/verify + queue-numbering features from the main branch.
 
 ---
 
 ## 1. Endpoints
 
-| Method | Path | Purpose | Classification in response? |
-|---|---|---|---|
-| `POST` | `/api/triage/register` | Staff registration: full auditable result | ✅ full |
-| `POST` | `/api/triage/intake` | Public (login-less) patient intake | ❌ patient-safe only |
-| `GET`  | `/api/triage/patients` | List patients (audit fields included) | stored data |
-| `GET`  | `/api/triage/patients/:id` | Single patient | stored data |
-| `PUT`  | `/api/triage/patients/:id/verify` | Record the clinician's final decision | verification result |
+| Method | Path | Auth | Purpose | Classification in response? |
+|---|---|---|---|---|
+| `POST` | `/api/triage/register` | public | Staff registration: full auditable result | ✅ full |
+| `POST` | `/api/triage/intake` | public | Public (login-less) patient intake | ⚠️ provisional category only |
+| `GET`  | `/api/triage/patients` | `verifyToken` | List patients (`?verifikasi=pending\|done\|all`) | stored data |
+| `GET`  | `/api/triage/patients/:id` | `verifyToken` | Single patient | stored data |
+| `PUT`  | `/api/triage/patients/:id` | `verifyToken` | Full edit **and** verification (`triageVerifySchema`) | stored data |
+| `PUT`  | `/api/triage/patients/:id/verify` | `verifyToken` | Compact "record final priority" action | verification result |
+| `DELETE` | `/api/triage/patients/:id` | `verifyToken` | Delete patient + queue + referrals | — |
 
-> **Prototype caveat:** `/register`, `/patients*` are currently unauthenticated
-> (pre-existing). They should be protected with `verifyToken` + `requireRoles`.
-> `/intake` is intentionally public but never returns the classification.
+Auth uses `Authorization: Bearer <jwt>` (`verifyToken`, secret `JWT_SECRET`).
+
+> **Prototype caveat:** `/register` and `/intake` are public by design (patient
+> QR flow / prototype registration) but `/register` returns the full
+> classification. In production, `/register` should require `verifyToken`
+> too; `/intake` must stay public and exposes **only the provisional operative
+> category** (so the patient's queue colour matches Manajemen Antrean), never
+> the full auditable classification block or the AI internals.
 
 ---
 
@@ -29,9 +40,13 @@ the frontend and any other consumer can rely on a stable contract.
 {
   "nama_pasien": "Siti",           // >= 2 chars
   "umur": 60,                      // positive integer
-  "satuan_umur": "Tahun",          // "Tahun" | "Bulan" | "Hari" (optional, default Tahun)
+  "satuan_umur": "tahun",          // "tahun" | "bulan" | "hari" (optional, default "tahun")
   "jenis_kelamin": "P",            // "L" | "P"
+  "nik": "3271…",                  // optional, exactly 16 digits
+  "tanggal_lahir": "1966-04-28",   // optional, YYYY-MM-DD
   "keluhan_utama": "Nyeri dada...",// >= 3 chars
+  "waktu_mulai_keluhan": "sejak 1 jam", // optional
+  "alergi_obat": "penisilin",      // optional
   "tanda_vital": {                 // optional; clinician-measured only
     "sistole": 120, "diastole": 80, "nadi": 88,
     "pernapasan": 20, "suhu": 37.0, "spo2": 97
@@ -41,10 +56,13 @@ the frontend and any other consumer can rely on a stable contract.
 }
 ```
 
+**Note:** `satuan_umur` is stored lowercase (`tahun`/`bulan`/`hari`). The rule
+engine also accepts the legacy capitalised form case-insensitively.
+
 **Behaviour change (backward compatible):** `prioritas_triage` is no longer a
-required input. Sending it is treated as a **staff override**, recorded in
-`final_prioritas` while the engine recommendation is preserved in
-`ai_recommended_category`.
+required input. Sending it is treated as a **staff override**: it becomes the
+operative `prioritas_triage`, while the engine recommendation is preserved
+separately in `prioritas_ai`.
 
 ---
 
@@ -58,9 +76,10 @@ required input. Sending it is treated as a **staff override**, recorded in
     "patient": {
       "id": "…uuid…",
       "nama_pasien": "Siti",
-      "prioritas_triage": "P2",              // operative / queue category
-      "ai_recommended_category": "P2",       // engine recommendation (never mutated)
-      "final_prioritas": null,               // staff override at registration, if any
+      "prioritas_triage": "P2",              // operative / final category
+      "prioritas_ai": "P2",                  // engine recommendation (never mutated)
+      "ai_recommended_category": "P2",       // alias of prioritas_ai (compat)
+      "final_prioritas": null,               // staff override at registration, if any (alias)
       "skor_urgensi": 3,                     // legacy 1–5 scale (compatibility)
       "analisis_ai": "Ringkasan faktual…",   // factual summary (NOT a reason)
       "alasan_esi": "Aturan yang diterapkan…",// decision reason from executed rules
@@ -100,7 +119,7 @@ required input. Sending it is treated as a **staff override**, recorded in
         "missing_information": []
       }
     },
-    "queue": { "id": "…uuid…", "nomor_antrean": "B-01", "status": "WAITING" }
+    "queue": { "id": "…uuid…", "nomor_antrean": "02", "status": "WAITING" }
   }
 }
 ```
@@ -121,6 +140,13 @@ required input. Sending it is treated as a **staff override**, recorded in
 - `queue_category` is never `"P3"` when the category is undetermined.
 - `alasan_esi` is derived from the rules that actually ran (see `applied_rule_ids`).
 
+### Queue numbering
+
+Queue numbers are a **single daily sequence** (`01`, `02`, …) assigned by
+`renumberQueuesForDay()`, ordered by risk (`P1 → P2 → P3 → P0`) then arrival
+time. There is **no `A/B/C/D` prefix**. Reordering happens whenever a priority
+changes (registration, verification, deletion).
+
 ---
 
 ## 4. `POST /api/triage/intake` — `201` response (patient-safe)
@@ -134,34 +160,43 @@ required input. Sending it is treated as a **staff override**, recorded in
     "nama_pasien": "Rina",
     "status": "WAITING",
     "referensi": "SIM-2026-AB12CD",
-    "queue": { "id": "…", "nomor_antrean": "C-01", "status": "WAITING" }
+    "prioritas_triage": "P2",   // provisional operative category (null if "review required")
+    "queue": { "id": "…", "nomor_antrean": "03", "status": "WAITING" }
   }
 }
 ```
 
-No classification, no priority, no reason is returned to the patient.
+Only `prioritas_triage` (the same value the staff queue uses, so the colour is
+identical) is exposed. The full `classification` audit block, `prioritas_ai`,
+`analisis_ai`, and `alasan_esi` are **not** returned to the patient. The
+category is provisional: staff can change it after assessment/verification.
 
 ---
 
-## 5. `PUT /api/triage/patients/:id/verify` — human verification
+## 5. Human verification
+
+There are two staff paths; both keep the AI recommendation immutable.
+
+### 5a. `PUT /api/triage/patients/:id/verify` — compact
 
 Request:
 
 ```jsonc
 {
   "final_prioritas": "P2",                       // required: P1 | P2 | P3 | P0
-  "override_reason": "Perburukan saat asesmen.", // required only if != ai_recommended_category
-  "reviewer_id": "…uuid…"                        // optional (else req.user.id)
+  "override_reason": "Perburukan saat asesmen."  // required only if != prioritas_ai
 }
 ```
 
 Rules:
 
-- If `final_prioritas !== ai_recommended_category` → `override_reason` (≥ 3 chars) is **required**, otherwise `400`.
-- The final decision is stored separately (`final_prioritas`, `reviewed_by`,
-  `reviewed_at`, `override_reason`); `ai_recommended_category` is never
-  overwritten. `review_required` becomes `false`.
-- The queue number prefix is re-issued to match the confirmed priority.
+- If `final_prioritas !== prioritas_ai` → `override_reason` (≥ 3 chars) is
+  **required**, otherwise `400`.
+- Writes `prioritas_triage` (final), `alasan_override`,
+  `status_verifikasi` (`DIVERIFIKASI` \| `OVERRIDDEN`), `petugas_verifikator_id`
+  (from `req.user`), `waktu_verifikasi`, and sets `review_required = false`.
+- `prioritas_ai` is never overwritten.
+- The day's queue is renumbered when the priority changes.
 
 Response `200`:
 
@@ -171,15 +206,23 @@ Response `200`:
   "message": "Prioritas final tersimpan terpisah dari rekomendasi AI.",
   "data": {
     "id": "…uuid…",
-    "ai_recommended_category": "P2",
-    "final_prioritas": "P2",
+    "ai_recommended_category": "P2",   // alias of prioritas_ai
+    "final_prioritas": "P2",           // alias of prioritas_triage
     "changed": false,
     "override_reason": null,
+    "status_verifikasi": "DIVERIFIKASI",
     "reviewed_at": "2026-…Z",
     "review_required": false
   }
 }
 ```
+
+### 5b. `PUT /api/triage/patients/:id` — full edit + verify
+
+Body validated by `triageVerifySchema` (identity, vitals, `asesmen`,
+`catatan_petugas`, `prioritas_triage`, `alasan_override`, `verifikasi`). With
+`verifikasi: true`, the patient is marked verified/overridden like above.
+Changing priority from `prioritas_ai` without `alasan_override` → `400`.
 
 ---
 
@@ -187,7 +230,8 @@ Response `200`:
 
 | Case | Status | Body |
 |---|---|---|
-| Zod validation failure | `400` | `{ status: "error", message: "Validasi data gagal.", errors: [...] }` |
+| Zod validation failure | `400` | `{ status: "error", message: "…", errors: [{ field, message }] }` |
+| Missing/invalid token (staff routes) | `401` | `{ status: "error", message: "Akses ditolak. …" }` |
 | Patient not found | `404` | `{ status: "error", message: "Pasien tidak ditemukan." }` |
 | Change without reason | `400` | `{ status: "error", message: "Alasan perubahan wajib diisi …" }` |
 | Unknown route | `404` | `{ status: "error", message: "Rute … tidak ditemukan" }` |
@@ -199,14 +243,35 @@ pipeline to `keyword_fallback` (still classified) or `TECHNICAL_FAILURE`
 
 ---
 
-## 7. Frontend integration
+## 7. Storage (audit / accountability)
 
-- `frontend/src/services/triageService.js` — `submitPatientIntake`, `registerTriage`, `verifyTriage`.
-- `frontend/src/pages/patient/PatientFormPage.jsx` — posts real intake (sends only
-  patient-supplied data; `tanda_vital` is empty because patients cannot measure vitals).
+`triage_patients` columns added for traceability:
+
+| Column | Meaning |
+|---|---|
+| `prioritas_ai` | AI/engine recommendation (immutable). |
+| `prioritas_triage` | Operative/final category (staff may override). |
+| `status_verifikasi` | `BELUM_DIVERIFIKASI` \| `DIVERIFIKASI` \| `OVERRIDDEN`. |
+| `alasan_override`, `petugas_verifikator_id`, `nama_verifikator`, `waktu_verifikasi` | Human verification record. |
+| `classification_status`, `review_required` | Engine confidence/uncertainty flags. |
+| `rule_version`, `extraction_mode`, `alasan_esi` | Reproducibility: which rule set, how the text was read, and the reason. |
+| `ai_recommendation` (JSONB) | Full engine output (rules, facts, missing info). |
+
+---
+
+## 8. Frontend integration
+
+- `frontend/src/services/triageService.js` — `submitPatientIntake`,
+  `registerTriage`/`registerTriagePatient`, `getTriagePatients`,
+  `getTriagePatientById`, `updateTriagePatient`, `verifyTriage`,
+  `deleteTriagePatient`.
+- `frontend/src/pages/patient/PatientFormPage.jsx` — posts real intake (sends
+  only patient-supplied data; `tanda_vital` is empty because patients cannot
+  measure vitals).
+- `frontend/src/pages/staff/TriageRegistrationPage.jsx` — staff list + edit +
+  verify, and renders the classification reason/status.
 - `frontend/src/components/staff/TriageClassificationPanel.jsx` — runs the
-  classification, shows status/review/rules/reason/missing info, and records the
-  human verification.
+  classification and records the human verification (demo widget).
 
 Colour mapping `P1→Merah`, `P2→Kuning`, `P3→Hijau` is an **operational** mapping,
 not ESI. The UI labels it as such.

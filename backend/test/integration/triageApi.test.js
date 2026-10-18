@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import jwt from 'jsonwebtoken';
 import app from '../../src/app.js';
 import sequelize from '../../src/config/database.js';
 import { TriagePatient, Queue } from '../../src/models/index.js';
@@ -13,9 +14,11 @@ import { TriagePatient, Queue } from '../../src/models/index.js';
  */
 
 const ORIGINAL_KEY = process.env.WAY_API_KEY;
+const ORIGINAL_JWT = process.env.JWT_SECRET;
 const originals = {};
 let server;
 let base;
+let token;
 
 function stubPersistence() {
   originals.transaction = sequelize.transaction;
@@ -24,12 +27,24 @@ function stubPersistence() {
   originals.queueCount = Queue.count;
   originals.queueCreate = Queue.create;
   originals.queueFindOne = Queue.findOne;
+  originals.queueFindAll = Queue.findAll;
 
   sequelize.transaction = async () => ({ commit: async () => {}, rollback: async () => {} });
 
-  TriagePatient.create = async (values) => ({ id: '11111111-1111-1111-1111-111111111111', ...values, save: async () => {} });
+  TriagePatient.create = async (values) => ({
+    id: '11111111-1111-1111-1111-111111111111',
+    createdAt: new Date(),
+    ...values,
+    save: async () => {},
+  });
   Queue.count = async () => 0;
-  Queue.create = async (values) => ({ id: '22222222-2222-2222-2222-222222222222', ...values });
+  Queue.findAll = async () => []; // renumberQueuesForDay sees an empty day
+  Queue.create = async (values) => ({
+    id: '22222222-2222-2222-2222-222222222222',
+    createdAt: new Date(),
+    ...values,
+    reload: async () => {},
+  });
 }
 
 function restorePersistence() {
@@ -39,13 +54,23 @@ function restorePersistence() {
   Queue.count = originals.queueCount;
   Queue.create = originals.queueCreate;
   Queue.findOne = originals.queueFindOne;
+  Queue.findAll = originals.queueFindAll;
 }
 
 const post = (path, body) =>
   fetch(`${base}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+const put = (path, body) =>
+  fetch(`${base}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+
 before(async () => {
   delete process.env.WAY_API_KEY; // force deterministic keyword fallback
+  process.env.JWT_SECRET = 'integration-test-secret';
+  token = jwt.sign({ id: 'user-1', role: 'perawat', nama: 'Perawat Uji' }, process.env.JWT_SECRET, { expiresIn: '1h' });
   stubPersistence();
   await new Promise((resolve) => { server = app.listen(0, resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
@@ -54,6 +79,7 @@ before(async () => {
 after(async () => {
   restorePersistence();
   if (ORIGINAL_KEY !== undefined) process.env.WAY_API_KEY = ORIGINAL_KEY;
+  if (ORIGINAL_JWT !== undefined) process.env.JWT_SECRET = ORIGINAL_JWT; else delete process.env.JWT_SECRET;
   await new Promise((resolve) => server.close(resolve));
 });
 
@@ -79,6 +105,17 @@ test('POST /api/triage/register: unknown route params are ignored (schema-safe)'
     jenis_kelamin: 'L',
     keluhan_utama: 'Batuk ringan',
     unexpected: 'ignored by schema',
+  });
+  assert.equal(res.status, 201);
+});
+
+test('POST /api/triage/register accepts lowercase satuan_umur', async () => {
+  const res = await post('/api/triage/register', {
+    nama_pasien: 'Bayi Uji',
+    umur: 6,
+    satuan_umur: 'bulan',
+    jenis_kelamin: 'L',
+    keluhan_utama: 'Demam dan rewel sejak semalam',
   });
   assert.equal(res.status, 201);
 });
@@ -120,7 +157,7 @@ test('POST /api/triage/register: API accepts a staff override and records it sep
   assert.equal(data.patient.ai_recommended_category, 'P3'); // engine recommendation preserved
 });
 
-test('POST /api/triage/intake returns a patient-safe payload (no classification leak)', async () => {
+test('POST /api/triage/intake returns the provisional category so the patient colour matches the staff queue', async () => {
   const res = await post('/api/triage/intake', {
     nama_pasien: 'Rina',
     umur: 28,
@@ -131,52 +168,63 @@ test('POST /api/triage/intake returns a patient-safe payload (no classification 
   const { data } = await res.json();
   assert.ok(data.referensi);
   assert.equal(data.queue.nomor_antrean[0] !== undefined, true);
+  // Provisional operative category is exposed so the patient indicator can use
+  // the same colour as Manajemen Antrean (may be null for "review required").
+  assert.ok('prioritas_triage' in data);
+  if (data.prioritas_triage !== null) {
+    assert.ok(['P1', 'P2', 'P3'].includes(data.prioritas_triage));
+  }
+  // The full auditable classification block and AI internals stay hidden.
   assert.equal(data.classification, undefined);
   assert.equal(data.ai_recommended_category, undefined);
+  assert.equal(data.prioritas_ai, undefined);
 });
 
-test('PUT /api/triage/patients/:id/verify rejects a changed priority without a reason', async () => {
-  TriagePatient.findByPk = async () => ({
-    id: 'x', ai_recommended_category: 'P3', prioritas_triage: 'P3', nomor_antrean: 'C-01', save: async () => {},
-  });
+test('PUT /api/triage/patients/:id/verify requires authentication', async () => {
   const res = await fetch(`${base}/api/triage/patients/x/verify`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ final_prioritas: 'P1' }),
   });
+  assert.equal(res.status, 401);
+});
+
+test('PUT /api/triage/patients/:id/verify rejects a changed priority without a reason', async () => {
+  TriagePatient.findByPk = async () => ({
+    id: 'x', prioritas_ai: 'P3', prioritas_triage: 'P3', save: async () => {},
+  });
+  const res = await put('/api/triage/patients/x/verify', { final_prioritas: 'P1' });
   assert.equal(res.status, 400);
 });
 
 test('PUT /api/triage/patients/:id/verify records the clinician decision', async () => {
   Queue.findOne = async () => null;
   const patient = {
-    id: 'x', ai_recommended_category: 'P3', prioritas_triage: 'P3', review_required: true,
+    id: 'x', prioritas_ai: 'P3', prioritas_triage: 'P3', review_required: true,
     save: async () => { patient.saved = true; },
   };
   TriagePatient.findByPk = async () => patient;
-  const res = await fetch(`${base}/api/triage/patients/x/verify`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ final_prioritas: 'P2', override_reason: 'Perburukan kondisi saat asesmen.' }),
+  const res = await put('/api/triage/patients/x/verify', {
+    final_prioritas: 'P2', override_reason: 'Perburukan kondisi saat asesmen.',
   });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.data.final_prioritas, 'P2');
   assert.equal(body.data.changed, true);
   assert.equal(body.data.review_required, false);
+  assert.equal(body.data.status_verifikasi, 'OVERRIDDEN');
   assert.equal(patient.saved, true);
 });
 
 test('PUT /api/triage/patients/:id/verify: agreeing with the AI needs no reason', async () => {
   Queue.findOne = async () => null;
   TriagePatient.findByPk = async () => ({
-    id: 'y', ai_recommended_category: 'P2', prioritas_triage: 'P2', save: async () => {},
+    id: 'y', prioritas_ai: 'P2', prioritas_triage: 'P2', save: async () => {},
   });
-  const res = await fetch(`${base}/api/triage/patients/y/verify`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ final_prioritas: 'P2' }),
-  });
+  const res = await put('/api/triage/patients/y/verify', { final_prioritas: 'P2' });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.data.changed, false);
+  assert.equal(body.data.status_verifikasi, 'DIVERIFIKASI');
 });
 
 test('unknown route returns a structured 404', async () => {

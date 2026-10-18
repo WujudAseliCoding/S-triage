@@ -55,6 +55,7 @@ export async function evaluateSet(cases) {
   const baselinePairs = [];
   let engineUndetermined = 0;
   let e2eUndetermined = 0;
+  const e2eModes = { llm: 0, keyword_fallback: 0, failed: 0 };
   const perCase = [];
 
   for (const c of cases) {
@@ -73,6 +74,9 @@ export async function evaluateSet(cases) {
     if (isCategory(e2e.classification.category)) e2ePairs.push({ reference: c.reference, predicted: e2e.classification.category });
     else e2eUndetermined += 1;
 
+    const mode = e2e.extraction?.mode || 'failed';
+    e2eModes[mode] = (e2eModes[mode] || 0) + 1;
+
     const base = baselinePredict(c.complaint, c.vitals || {});
     baselinePairs.push({ reference: c.reference, predicted: base });
 
@@ -81,12 +85,13 @@ export async function evaluateSet(cases) {
       reference: c.reference,
       engine: eng.category ?? 'REVIEW',
       e2e: e2e.classification.category ?? 'REVIEW',
+      mode,
       baseline: base,
     });
   }
 
   return {
-    counts: { cases: cases.length, engineUndetermined, e2eUndetermined },
+    counts: { cases: cases.length, engineUndetermined, e2eUndetermined, e2eModes },
     engine: summarize(enginePairs, { undetermined: engineUndetermined, total: cases.length }),
     endToEnd: summarize(e2ePairs, { undetermined: e2eUndetermined, total: cases.length }),
     baseline: summarize(baselinePairs, { undetermined: 0, total: cases.length }),
@@ -104,9 +109,12 @@ function pct(x) {
   return x === null || x === undefined ? 'n/a' : `${(x * 100).toFixed(1)}%`;
 }
 
-function printSection(title, s) {
+function printSection(title, s, modes) {
   console.log(`\n=== ${title} ===`);
   console.log(`classified: ${s.evaluated}/${s.total}   undetermined(review): ${s.undetermined} (${pct(s.reviewRequiredRate)})`);
+  if (modes) {
+    console.log(`extraction modes: llm=${modes.llm || 0}  keyword_fallback=${modes.keyword_fallback || 0}  failed=${modes.failed || 0}`);
+  }
   console.log(`accuracy: ${pct(s.accuracy)}   macroF1: ${pct(s.macroF1)}`);
   console.log(`under-triage: ${s.errors.under}   over-triage: ${s.errors.over}   correct: ${s.errors.correct}`);
   console.log('per-class  precision / recall / f1 / support');
@@ -129,19 +137,19 @@ async function main() {
   console.log('Metrics measure consistency vs the reference set, not clinical validity.');
   console.log(`\n## Base set (${r.base.counts.cases} cases)`);
   printSection('A. Deterministic rule engine (gold structured input) — spec conformance', r.base.engine);
-  printSection('B. End-to-end offline pipeline (keyword extraction + engine)', r.base.endToEnd);
+  printSection('B. End-to-end pipeline (extraction + engine; live LLM when WAY_API_KEY is set)', r.base.endToEnd, r.base.counts.e2eModes);
   printSection('C. Baseline (original keyword classifier)', r.base.baseline);
   console.log('\nPer-case (base):');
   for (const c of r.base.perCase) {
-    console.log(`  ${c.id}  ref=${c.reference}  engine=${c.engine}  e2e=${c.e2e}  baseline=${c.baseline}`);
+    console.log(`  ${c.id}  ref=${c.reference}  engine=${c.engine}  e2e=${c.e2e} (${c.mode})  baseline=${c.baseline}`);
   }
 
   console.log(`\n## Paraphrase robustness set (${r.paraphrase.counts.cases} cases; keyword fallback is NOT tuned to these)`);
   printSection('D. Rule engine (gold structured input)', r.paraphrase.engine);
-  printSection('E. End-to-end offline pipeline (keyword extraction + engine)', r.paraphrase.endToEnd);
+  printSection('E. End-to-end pipeline (extraction + engine)', r.paraphrase.endToEnd, r.paraphrase.counts.e2eModes);
   console.log('\nPer-case (paraphrase):');
   for (const c of r.paraphrase.perCase) {
-    console.log(`  ${c.id}  ref=${c.reference}  engine=${c.engine}  e2e=${c.e2e}  baseline=${c.baseline}`);
+    console.log(`  ${c.id}  ref=${c.reference}  engine=${c.engine}  e2e=${c.e2e} (${c.mode})  baseline=${c.baseline}`);
   }
 }
 

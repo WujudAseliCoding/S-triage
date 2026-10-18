@@ -82,8 +82,8 @@ actual test/evaluation results. Read together with
 | API key only backend-side | ✅ `WAY_API_KEY` read in `config/ai.js`; frontend only has `VITE_API_BASE_URL` |
 | Secrets/patient data in logs | ✅ gateway errors log status/code only; extraction failures are not logged with complaint text |
 | Third-party copyrighted doc not redistributed | ✅ `docs/reference/` added to `.gitignore` |
-| Patient PII exposure | ⚠️ `/api/triage/register` and `/api/triage/patients` are currently **unauthenticated** (pre-existing). A patient-safe `/api/triage/intake` was added so the public flow never receives classification. **Recommendation:** add `verifyToken`/`requireRoles` to the staff triage/queue/referral routes. |
-| Nested duplicate clone with real `.env` | ⚠️ hygiene risk; recommend deleting `S-triage/S-triage/` or adding it to `.gitignore`. |
+| Patient PII exposure | ✅ Staff routes (`/api/triage/patients*`, including the `/verify` action) are protected by `verifyToken`. ⚠️ `/api/triage/register` remains public (pre-existing) and returns the full classification; `/api/triage/intake` is public and returns only the provisional operative category (`prioritas_triage`) so the patient's queue colour matches Manajemen Antrean — the full audit block and AI internals stay hidden. **Recommendation:** require `verifyToken` on `/register` too, and add `requireRoles` to queue/referral routes. |
+| Nested duplicate clone with real `.env` | ✅ Resolved: the duplicate `S-triage/S-triage/` clone was removed, untracked from git (`git rm --cached`), and added to `.gitignore`; the real `.env` files were copied to the repo root first. |
 
 ---
 
@@ -127,8 +127,8 @@ Command: `npm test -w backend` (Node built-in runner).
 ℹ fail 0
 ```
 
-Breakdown: rule engine (16), LLM extraction (12), service (5), API/integration (10),
-evaluation (7). Frontend: `npm run build -w frontend` ✅ success; `npm run lint -w frontend` ✅ clean.
+Breakdown: rule engine (18), LLM extraction (12), service (5), API/integration (12),
+evaluation (5). Frontend: `npm run build -w frontend` ✅ success; `npm run lint -w frontend` ✅ clean.
 
 ---
 
@@ -164,8 +164,35 @@ Per-class (paraphrase E2E): P1 P=100%/R=100%; P2 P=100%/R=20%; P3 P=33.3%/R=100%
 
 The paraphrase gap (P01, P02, P04, P05 → under-triaged) is the **keyword
 fallback missing synonyms** ("dada seperti ditindih benda berat", "mulut miring…").
-This is the expected motivation for the LLM extraction stage; the LLM path was
-**not** exercised here (no API key available in this environment) — see §6.
+This is the motivation for the LLM extraction stage.
+
+### 5.2b End-to-end **live LLM** pipeline (real Way/Gutech gateway)
+
+Command: `node --env-file=<backend .env> test/evaluation/runEvaluation.js`
+(38 cases, ~9 s/call, ~5.7 min). The harness now reports the extraction mode per
+case.
+
+| Set | Extraction modes | Accuracy | Macro F1 | Under-triage | Over-triage | Review-required |
+|---|---|---|---|---|---|---|
+| Base (30) | llm=20 · keyword=7 · failed=3 | 96.4% | 95.8% | 0 | 1 | 6.7% |
+| Paraphrase (8) | llm=7 · keyword=1 · failed=0 | 87.5% | 89.6% | 1 | 0 | 0.0% |
+
+Live vs. baseline on the base set: **96.4% vs 50.0%** accuracy and **0 vs 11**
+under-triage. On the paraphrase set (where the keyword fallback under-triaged 4)
+the LLM path drops to **1 under-triage** and `P2` recall rises to 80%. **No
+LLM-parsed case was under-triaged** — the single paraphrase under-triage (P01)
+happened in the one case that fell back to keywords. The only over-triage
+(C19, `P2`→`P1`) came from the conservative raw scan after a *failed* extraction
+(safe direction).
+
+**Robustness gap (honest):** on the base set ~26% of extractions did **not** use
+the LLM (`keyword_fallback` 7 + `failed` 3, plus 2 more review cases). `failed`
+= gateway timeout/empty → conservative degraded eval; `keyword_fallback` = the
+model returned JSON that failed schema validation (e.g. an invented flag code),
+so the **whole** extraction was discarded. Both degrade safely (never a
+fabricated confident label) but cost accuracy. Recommended follow-ups: retry once
+on schema mismatch, drop only the invalid flag codes instead of the whole object,
+and raise/streamline the timeout.
 
 ### 5.3 Baseline comparison (original keyword classifier)
 
@@ -191,8 +218,12 @@ accuracy.
   or repeated model runs against an independent gold standard; neither exists
   (single implementer, deterministic reference). Reporting one would be
   fabricated precision.
-- **Prediction consistency / flip rate (LLM):** requires repeated live model
-  calls; not run (no API key). The offline path is deterministic by construction.
+- **Prediction consistency / flip rate (LLM):** the live path is **not**
+  deterministic. Two full live runs were not identical (e.g. paraphrase P04 and
+  P06 changed category between runs, driven by whether extraction succeeded), so
+  a single summary number would be misleading. A controlled flip-rate study
+  (N repeats, fixed prompt/model) is still outstanding. The keyword fallback and
+  the rule engine are deterministic by construction.
 
 ---
 
@@ -200,12 +231,12 @@ accuracy.
 
 | Component | Status |
 |---|---|
-| **LLM extraction (Way/Gutech)** | Implemented and unit-tested with a mocked gateway (valid JSON, invalid JSON, missing fields, invented values, HTTP error, empty, timeout). **Live call not verified** — no `WAY_API_KEY` in this workspace. The client performs a real `POST` to `WAY_API_URL` and validates the response. |
+| **LLM extraction (Way/Gutech)** | Implemented and unit-tested with a mocked gateway (valid JSON, invalid JSON, missing fields, invented values, HTTP error, empty, timeout). **Live call verified** against the real gateway (`WAY_API_MODEL=gutech/fast`): 9/10 pilot cases extracted in `llm` mode, 1 hit the request timeout and degraded safely via keyword fallback; paraphrased complaints the keyword fallback mislabelled were classified correctly, and no fabricated symptoms were produced. The client performs a real `POST` to `WAY_API_URL` and validates the response. |
 | **Deterministic rule engine** | Implemented, tested, versioned. |
 | **RAG** | **Not present and not implemented.** No retrieval collection/endpoint/call exists in the code. Per instructions, RAG was deliberately **not** built before the extraction/validation/rule/review flow works. If added later: keep executable rules out of the collection, keep evaluation cases separate from operational knowledge documents, and do not let retrieved examples override verified rules. |
-| **Frontend** | Patient form now POSTs real intake (limited response). Staff `TriageClassificationPanel` runs the classification, shows category/status/review flag/rules/reason/missing info, and records the human verification (separate from the AI recommendation). Live queue still uses mock data (unchanged — out of the minimal scope; the queue API already returns the new audit fields). |
-| **Human review** | Implemented in the backend (`PUT /triage/patients/:id/verify`) and surfaced in the staff panel. |
-| **Queue** | Operative category drives the existing `A/B/C` prefix logic. Provisional/undetermined cases are placed in the safety-first bucket, not the non-urgent one. |
+| **Frontend** | Patient form now POSTs real intake; the response carries the provisional operative category so the patient's queue indicator uses the **same colour** as Manajemen Antrean (single shared mapping in `frontend/src/utils/constants.js`). Staff `TriageClassificationPanel` runs the classification, shows category/status/review flag/rules/reason/missing info, and records the human verification (separate from the AI recommendation). Live queue still uses mock data (unchanged — out of the minimal scope; the queue API already returns the new audit fields). |
+| **Human review** | Implemented in the backend via `PUT /triage/patients/:id/verify` (compact final-priority action) and `PUT /triage/patients/:id` (full edit + verify), and surfaced in the staff registration page. |
+| **Queue** | Queue numbers are a single daily sequence (`01`, `02`, …) re-ordered by risk (`renumberQueuesForDay`), triggered on registration/verify/delete. Provisional/undetermined cases are placed in the safety-first bucket, not the non-urgent one. |
 
 ---
 
@@ -214,9 +245,11 @@ accuracy.
 1. **Adult danger-zone vital thresholds unverified** (handbook figure not
    text-extractable) → not implemented. Needs clinician sign-off + a verified
    source before adding.
-2. **No live LLM verification** in this environment; run the extraction against
-   the real gateway with `WAY_API_KEY` set and record results.
-3. **Auth gap**: staff triage/queue/referral routes remain unauthenticated.
+2. **Extraction latency is high** (~8–10 s per call on `gutech/fast`), which is
+   too slow for an interactive intake; consider a shorter timeout plus an
+   asynchronous retry, and record a larger live consistency/flip-rate sample.
+3. **Auth gap**: `/api/triage/register` is still public and returns the full
+   classification; queue/referral routes still lack `requireRoles`.
 4. **Reference labels are not clinically validated** — need blinded review by a
    clinician before any accuracy claim.
 5. **High-risk vocabulary is not exhaustive** — clinician review required.

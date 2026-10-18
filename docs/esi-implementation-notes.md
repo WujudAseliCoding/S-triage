@@ -222,8 +222,9 @@ Run: `npm test -w backend` (Node built-in test runner, no new dependency).
 - **Service** — `backend/test/triage/classificationService.test.js`: age
   normalisation, vitals detection, end-to-end separation of extraction and rules.
 - **API / integration** — `backend/test/integration/triageApi.test.js`:
-  validation errors, response-schema compatibility, patient-safe intake,
-  human-verification rules (reason required only when overriding).
+  validation errors, response-schema compatibility, intake response shape
+  (provisional category only), human-verification rules (reason required only
+  when overriding).
 - **Evaluation** — `backend/test/evaluation/*`: metrics + reference set.
 
 See `docs/ai-classification-audit.md` for the actual results and

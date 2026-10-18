@@ -24,12 +24,33 @@ export const Queue = sequelize.define('Queue', {
     type: DataTypes.UUID,
     allowNull: true, // Bisa kosong saat pendaftaran awal sebelum di-assign atau dipanggil oleh dokter tertentu
   },
+  ruang_periksa: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: 'Ruang Periksa 1',
+  },
+  waktu_masuk: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
   waktu_panggil: {
     type: DataTypes.DATE,
     allowNull: true,
   },
   waktu_selesai: {
     type: DataTypes.DATE,
+    allowNull: true,
+  },
+  estimasi_panggilan: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  catatan_tindakan: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  alasan_penundaan: {
+    type: DataTypes.TEXT,
     allowNull: true,
   },
 }, {

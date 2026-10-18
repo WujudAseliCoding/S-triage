@@ -33,7 +33,8 @@ export default function QueueTicket({ patientName, referensi }) {
           <PriorityBadge priority={ticket.priority} withDescription className="px-3 py-2 text-sm" />
           <p className="mt-3 text-sm text-slate-600">Ditetapkan petugas; dapat berubah setelah penilaian ulang.</p>
           <p className="mt-2 text-sm font-semibold text-slate-800">
-            {ticket.nomorTiket} tetap, meski urutan panggil berubah. Nomor tiket bukan peringkat atau kode urgensi.
+            Nomor antrean diurutkan mulai dari tingkat risiko paling tinggi; nomor dapat menyesuaikan
+            bila prioritas triase berubah.
           </p>
         </div>
       </section>

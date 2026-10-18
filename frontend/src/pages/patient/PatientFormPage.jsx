@@ -1,30 +1,18 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ChevronDown, ChevronRight, ClipboardList, LogIn } from 'lucide-react';
 import FormField from '../../components/common/FormField';
 import EmergencyBox from '../../components/patient/EmergencyBox';
-import { AGE_UNITS } from '../../utils/constants';
-import { submitPatientIntake } from '../../services/triageService';
+import { AGE_UNITS, priorityKeyFromCode } from '../../utils/constants';
 import {
   PATIENT_FORM_INITIAL,
   PATIENT_FORM_SUMMARY,
   patientFormSchema,
 } from '../../utils/patientFormSchema';
-import { inputClass } from '../../utils/styles';
+import { buttonOutlineClass, inputClass } from '../../utils/styles';
+import { submitPatientIntake } from '../../services/triageService';
 
 const checkboxClass = 'size-5 shrink-0 rounded border-slate-300 accent-brand-700';
-
-// Map the form's age input to { umur, satuan_umur }, preferring days/months for babies.
-function deriveAge(values) {
-  if (values.pakaiTanggalLahir && values.tanggalLahir) {
-    const birth = new Date(values.tanggalLahir);
-    const days = Math.floor((Date.now() - birth.getTime()) / 86400000);
-    if (days < 31) return { umur: Math.max(days, 1), satuan_umur: 'Hari' };
-    if (days < 365) return { umur: Math.max(Math.floor(days / 30.4375), 1), satuan_umur: 'Bulan' };
-    return { umur: Math.floor(days / 365.25), satuan_umur: 'Tahun' };
-  }
-  return { umur: Number(values.umur), satuan_umur: values.satuanUmur };
-}
 
 function SectionCard({ number, title, subtitle, children }) {
   return (
@@ -41,12 +29,29 @@ function SectionCard({ number, title, subtitle, children }) {
   );
 }
 
+// Hitung umur dari tanggal lahir; bayi memakai satuan bulan/hari agar tidak dibulatkan menjadi 0 tahun.
+function ageFromBirthDate(isoDate) {
+  const birth = new Date(isoDate);
+  const now = new Date();
+  let years = now.getFullYear() - birth.getFullYear();
+  let months = now.getMonth() - birth.getMonth();
+  if (now.getDate() < birth.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  if (years >= 1) return { umur: years, satuan: 'tahun' };
+  if (months >= 1) return { umur: months, satuan: 'bulan' };
+  const days = Math.max(1, Math.floor((now - birth) / 86400000));
+  return { umur: days, satuan: 'hari' };
+}
+
 export default function PatientFormPage() {
   const navigate = useNavigate();
   const [values, setValues] = useState(PATIENT_FORM_INITIAL);
   const [errors, setErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const errorKeys = Object.keys(errors);
 
@@ -62,7 +67,6 @@ export default function PatientFormPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setSubmitError(null);
     const result = patientFormSchema.safeParse(values);
 
     if (!result.success) {
@@ -75,29 +79,52 @@ export default function PatientFormPage() {
       return;
     }
 
-    const { umur, satuan_umur } = deriveAge(result.data);
+    setIsSubmitting(true);
+    setSubmitError('');
     try {
-      setSubmitting(true);
-      const data = await submitPatientIntake({
-        nama_pasien: result.data.nama,
-        umur,
-        satuan_umur,
-        jenis_kelamin: result.data.jenisKelamin,
-        keluhan_utama: result.data.keluhan,
+      const data = result.data;
+      const age = data.pakaiTanggalLahir
+        ? ageFromBirthDate(data.tanggalLahir)
+        : { umur: Number(data.umur), satuan: data.satuanUmur.toLowerCase() };
+
+      const payload = {
+        nama_pasien: data.nama,
+        umur: age.umur,
+        satuan_umur: age.satuan,
+        jenis_kelamin: data.jenisKelamin,
+        nik: data.tanpaNik ? undefined : data.nik || undefined,
+        tanggal_lahir: data.pakaiTanggalLahir ? data.tanggalLahir : undefined,
+        keluhan_utama: data.keluhan,
+        waktu_mulai_keluhan: data.waktuMulai || undefined,
+        alergi_obat: data.alergiTidakTahu ? 'Tidak tahu' : data.alergi || undefined,
         tanda_vital: {},
-      });
-      // Patient view never receives the AI classification.
+      };
+
+      // Public intake endpoint. The response now carries the provisional
+      // operative category so the patient's queue colour matches Manajemen
+      // Antrean; the full classification block is still not exposed.
+      const res = await submitPatientIntake(payload);
+      const nomorAntrean = res?.queue?.nomor_antrean || '-';
+      const referensi = res?.referensi || `REG-${String(res?.id ?? '').slice(0, 8).toUpperCase()}`;
+
       navigate('/antrean', {
-        state: { submission: { ...result.data, referensi: data.referensi } },
+        state: {
+          submission: {
+            ...data,
+            nomorAntrean,
+            referensi,
+            priority: priorityKeyFromCode(res?.prioritas_triage),
+          },
+        },
       });
-    } catch (error) {
+    } catch (err) {
       setSubmitError(
-        error?.response?.data?.message ||
-          'Pengajuan gagal terkirim. Periksa koneksi lalu coba lagi, atau lapor petugas.',
+        err?.response?.data?.message ||
+          'Formulir belum terkirim. Periksa koneksi Anda lalu coba lagi, atau lapor langsung ke petugas pendaftaran.',
       );
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -134,11 +161,8 @@ export default function PatientFormPage() {
 
       {submitError && (
         <div className="rounded-xl border border-red-300 bg-red-50 p-4" role="alert">
-          <p className="text-sm font-bold text-red-700">Pengajuan tidak terkirim</p>
+          <p className="text-sm font-bold text-red-700">Formulir belum terkirim</p>
           <p className="mt-1 text-sm text-red-700">{submitError}</p>
-          <p className="mt-2 text-xs text-red-700">
-            Jika kondisi memburuk, jangan menunggu — segera minta bantuan petugas.
-          </p>
         </div>
       )}
 
@@ -183,9 +207,9 @@ export default function PatientFormPage() {
           />
         </FormField>
 
-        <fieldset aria-invalid={Boolean(errors.jenisKelamin)}>
-          <legend className="mb-2 text-sm font-semibold text-slate-800">
-            Jenis kelamin <span className="text-xs font-normal text-slate-500">Wajib</span>
+        <fieldset>
+          <legend className="mb-3 text-sm font-semibold text-slate-800">
+            Jenis kelamin<span className="font-semibold text-slate-800"> • Wajib</span>
           </legend>
           <div className="flex gap-6">
             {[
@@ -206,8 +230,8 @@ export default function PatientFormPage() {
             ))}
           </div>
           {errors.jenisKelamin && (
-            <p className="mt-2 text-sm font-medium text-red-700" role="alert">
-              {errors.jenisKelamin}
+            <p className="mt-1.5 text-xs font-semibold text-red-600" role="alert">
+              ! {errors.jenisKelamin}
             </p>
           )}
         </fieldset>
@@ -413,10 +437,10 @@ export default function PatientFormPage() {
         </p>
         <button
           type="submit"
-          disabled={submitting}
-          className="mt-4 w-full rounded-xl bg-brand-700 px-4 py-4 text-base font-bold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isSubmitting}
+          className="mt-4 w-full rounded-xl bg-brand-700 px-4 py-4 text-base font-bold text-white transition hover:bg-brand-800 disabled:opacity-60"
         >
-          {submitting ? 'Mengirim…' : 'Kirim keluhan'}
+          {isSubmitting ? 'Mengirim…' : 'Kirim keluhan'}
         </button>
         <p className="mt-4 text-sm leading-relaxed text-slate-500">
           Pengiriman tidak menentukan prioritas triase atau nomor antrean. Kondisi pasien dinilai
@@ -431,6 +455,14 @@ export default function PatientFormPage() {
           berdasarkan kondisi. Jika memburuk, segera minta bantuan petugas.
         </p>
       </section>
+
+      <Link
+        to="/login"
+        className={`${buttonOutlineClass} flex w-full items-center justify-center gap-2 py-3.5`}
+      >
+        <LogIn className="size-4" aria-hidden="true" />
+        Masuk sebagai Petugas / Admin
+      </Link>
     </form>
   );
 }

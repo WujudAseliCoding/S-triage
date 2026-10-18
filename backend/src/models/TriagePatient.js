@@ -11,22 +11,40 @@ export const TriagePatient = sequelize.define('TriagePatient', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  nik: {
+    type: DataTypes.STRING(16),
+    allowNull: true,
+  },
+  tanggal_lahir: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
   umur: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
+  // Satuan umur disimpan huruf kecil: 'tahun' | 'bulan' | 'hari'.
   satuan_umur: {
-    type: DataTypes.ENUM('Tahun', 'Bulan', 'Hari'),
-    allowNull: true,
-    defaultValue: 'Tahun',
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'tahun',
   },
   jenis_kelamin: {
     type: DataTypes.ENUM('L', 'P'),
     allowNull: false,
+    defaultValue: 'L',
   },
   keluhan_utama: {
     type: DataTypes.TEXT,
     allowNull: false,
+  },
+  waktu_mulai_keluhan: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  alergi_obat: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
   tanda_vital: {
     type: DataTypes.JSONB,
@@ -43,6 +61,11 @@ export const TriagePatient = sequelize.define('TriagePatient', {
     allowNull: false,
     defaultValue: 'P3',
   },
+  // Rekomendasi prioritas asli dari AI (prioritas_triage = prioritas final yang ditetapkan petugas)
+  prioritas_ai: {
+    type: DataTypes.STRING(2),
+    allowNull: true,
+  },
   skor_urgensi: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -53,11 +76,39 @@ export const TriagePatient = sequelize.define('TriagePatient', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
-  // --- Audit / accountability fields ---
-  ai_recommended_category: {
+  // Asesmen petugas: nyeri, faktor relevan, tanda bahaya, riwayat penyakit
+  asesmen: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: {},
+  },
+  catatan_petugas: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  alasan_override: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  // --- Human verification (separate from the AI recommendation) ---
+  status_verifikasi: {
+    type: DataTypes.ENUM('BELUM_DIVERIFIKASI', 'DIVERIFIKASI', 'OVERRIDDEN'),
+    allowNull: false,
+    defaultValue: 'BELUM_DIVERIFIKASI',
+  },
+  petugas_verifikator_id: {
+    type: DataTypes.UUID,
+    allowNull: true,
+  },
+  nama_verifikator: {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  waktu_verifikasi: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
+  // --- Audit / accountability fields (deterministic rule engine) ---
   classification_status: {
     type: DataTypes.STRING,
     allowNull: true,
@@ -81,23 +132,6 @@ export const TriagePatient = sequelize.define('TriagePatient', {
   },
   ai_recommendation: {
     type: DataTypes.JSONB,
-    allowNull: true,
-  },
-  // --- Human verification (separate from the AI recommendation) ---
-  final_prioritas: {
-    type: DataTypes.ENUM('P1', 'P2', 'P3', 'P0'),
-    allowNull: true,
-  },
-  reviewed_by: {
-    type: DataTypes.UUID,
-    allowNull: true,
-  },
-  reviewed_at: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-  override_reason: {
-    type: DataTypes.TEXT,
     allowNull: true,
   },
 }, {

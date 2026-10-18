@@ -2,17 +2,14 @@ import { useState } from 'react';
 import Card from '../common/Card';
 import FormField from '../common/FormField';
 import { TriangleAlert, CheckCircle2, Cpu } from 'lucide-react';
-import { TRIAGE_PRIORITY } from '../../utils/constants';
+import { TRIAGE_PRIORITY, PRIORITY_CODE_TO_KEY } from '../../utils/constants';
 import { inputClass, buttonOutlineClass } from '../../utils/styles';
 import { registerTriage, verifyTriage } from '../../services/triageService';
-
-// Operational category -> colour token. This is NOT an ESI level.
-const CATEGORY_TO_COLOR = { P1: 'merah', P2: 'kuning', P3: 'hijau' };
 
 const INITIAL = {
   nama_pasien: 'Kurniawan Siregar',
   umur: '34',
-  satuan_umur: 'Tahun',
+  satuan_umur: 'tahun',
   jenis_kelamin: 'L',
   keluhan_utama: 'Demam tinggi sejak 3 hari, batuk kering, dan sesak saat beraktivitas ringan.',
   sistole: '', diastole: '', nadi: '', pernapasan: '', spo2: '', suhu: '', skala_nyeri: '',
@@ -100,7 +97,7 @@ export default function TriageClassificationPanel() {
   };
 
   const c = result?.classification;
-  const color = c && CATEGORY_TO_COLOR[c.category] ? TRIAGE_PRIORITY[CATEGORY_TO_COLOR[c.category]] : null;
+  const color = c && PRIORITY_CODE_TO_KEY[c.category] ? TRIAGE_PRIORITY[PRIORITY_CODE_TO_KEY[c.category]] : null;
 
   return (
     <Card
@@ -116,7 +113,7 @@ export default function TriageClassificationPanel() {
             <div className="flex gap-2">
               <input id="ai-umur" inputMode="numeric" value={values.umur} onChange={(e) => setField('umur', e.target.value.replace(/\D/g, '').slice(0, 3))} className={inputClass()} />
               <select value={values.satuan_umur} onChange={(e) => setField('satuan_umur', e.target.value)} className={`${inputClass()} w-28`}>
-                {['Tahun', 'Bulan', 'Hari'].map((u) => <option key={u}>{u}</option>)}
+                {['Tahun', 'Bulan', 'Hari'].map((u) => <option key={u} value={u.toLowerCase()}>{u}</option>)}
               </select>
             </div>
           </FormField>

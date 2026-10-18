@@ -30,7 +30,7 @@ export const patientFormSchema = z
   .object({
     untuk: z.enum(['sendiri', 'keluarga']),
     nama: z.string().trim().min(1, 'Isi nama lengkap pasien.'),
-    jenisKelamin: z.enum(['L', 'P'], { message: 'Pilih jenis kelamin pasien.' }),
+    jenisKelamin: z.enum(['L', 'P'], { error: 'Pilih jenis kelamin pasien.' }),
     umur: z.string().trim(),
     satuanUmur: z.enum(['Tahun', 'Bulan', 'Hari']),
     pakaiTanggalLahir: z.boolean(),
