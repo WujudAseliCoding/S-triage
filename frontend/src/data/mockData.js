@@ -114,7 +114,7 @@ export const REPORT_DOWNLOADS = [
 
 // ---------- Antrean pasien (tampilan pasien) ----------
 export const PATIENT_TICKET = {
-  nomorTiket: 'A-023',
+  nomorTiket: '023',
   priority: 'hijau',
   mulaiMenunggu: '10:00 WIB',
   sudahMenunggu: '10 menit',

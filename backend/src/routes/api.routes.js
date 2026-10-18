@@ -4,14 +4,19 @@ import authRoutes from './auth.routes.js';
 import {
   registerTriagePatient,
   getTriagePatients,
-  getTriagePatientById
+  getTriagePatientById,
+  updateTriagePatient,
+  deleteTriagePatient
 } from '../controllers/triage.controller.js';
 import {
   getLiveQueue,
   callPatient,
   startServing,
   finishServing,
-  cancelQueue
+  cancelQueue,
+  escalateQueue,
+  recordAction,
+  deleteQueue
 } from '../controllers/queue.controller.js';
 import {
   createReferral,
@@ -47,6 +52,8 @@ router.get('/facilities', getFacilities);
 router.post('/triage/register', registerTriagePatient);
 router.get('/triage/patients', getTriagePatients);
 router.get('/triage/patients/:id', getTriagePatientById);
+router.put('/triage/patients/:id', updateTriagePatient);
+router.delete('/triage/patients/:id', deleteTriagePatient);
 
 // Live Queue Routes
 router.get('/queue/live', getLiveQueue);
@@ -54,6 +61,9 @@ router.put('/queue/call/:id', callPatient);
 router.put('/queue/serve/:id', startServing);
 router.put('/queue/finish/:id', finishServing);
 router.put('/queue/cancel/:id', cancelQueue);
+router.put('/queue/escalate/:id', escalateQueue);
+router.put('/queue/action/:id', recordAction);
+router.delete('/queue/:id', deleteQueue);
 
 // Referrals Routes
 router.post('/referrals', createReferral);

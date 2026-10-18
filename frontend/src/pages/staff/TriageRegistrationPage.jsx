@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Card from '../../components/common/Card';
 import FormField from '../../components/common/FormField';
 import PriorityBadge from '../../components/common/PriorityBadge';
-import { TriangleAlert } from 'lucide-react';
+import { ArrowLeft, TriangleAlert } from 'lucide-react';
 import { buttonOutlineClass, buttonPrimaryClass, inputClass } from '../../utils/styles';
-import { registerTriagePatient } from '../../services/triageService';
+import {
+  registerTriagePatient,
+  getTriagePatientById,
+  updateTriagePatient,
+} from '../../services/triageService';
 
 const COMPLETENESS = [
   ['Identitas kunjungan / no. rekam medis', 'BELUM TERTAUT'],
@@ -64,19 +69,62 @@ function ChecklistRow({ label, status }) {
   );
 }
 
+const EMPTY_FORM = {
+  nama: '',
+  umur: '',
+  jenis_kelamin: 'L',
+  keluhan: '',
+  catatan: '',
+  vital: {},
+  assessment: {},
+};
+
 export default function TriageRegistrationPage() {
-  const [form, setForm] = useState({
-    nama: '',
-    umur: '',
-    jenis_kelamin: 'L',
-    keluhan: '',
-    catatan: '',
-    vital: {},
-    assessment: {},
-  });
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+  const isEdit = Boolean(editId);
+
+  const [form, setForm] = useState(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingPatient, setIsLoadingPatient] = useState(Boolean(editId));
+  const [loadError, setLoadError] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+
+  // Mode edit: muat data pasien dari database lalu isi formulir
+  useEffect(() => {
+    if (!editId) return undefined;
+    let isActive = true;
+    getTriagePatientById(editId)
+      .then((patient) => {
+        if (!isActive) return;
+        if (!patient) {
+          setLoadError('Data pasien tidak ditemukan.');
+          return;
+        }
+        setForm({
+          nama: patient.nama_pasien || '',
+          umur: patient.umur != null ? String(patient.umur) : '',
+          jenis_kelamin: patient.jenis_kelamin || 'L',
+          keluhan: patient.keluhan_utama || '',
+          catatan: patient.catatan_petugas || '',
+          vital: patient.tanda_vital || {},
+          assessment: {},
+        });
+      })
+      .catch(() => {
+        if (isActive) {
+          setLoadError('Gagal memuat data pasien. Pastikan backend aktif lalu coba lagi.');
+        }
+      })
+      .finally(() => {
+        if (isActive) setIsLoadingPatient(false);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [editId]);
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
   const setVital = (key, value) =>
@@ -100,8 +148,11 @@ export default function TriageRegistrationPage() {
         jenis_kelamin: form.jenis_kelamin,
         keluhan_utama: form.keluhan.trim(),
         tanda_vital: form.vital,
+        catatan_petugas: form.catatan,
       };
-      const res = await registerTriagePatient(payload);
+      const res = isEdit
+        ? await updateTriagePatient(editId, payload)
+        : await registerTriagePatient(payload);
       setResult(res);
     } catch (err) {
       const errMsg =
@@ -109,7 +160,9 @@ export default function TriageRegistrationPage() {
         (err?.response?.data?.errors
           ? err.response.data.errors.map((e) => e.message).join(', ')
           : null) ||
-        'Gagal mendaftarkan pasien. Pastikan backend aktif dan coba lagi.';
+        (isEdit
+          ? 'Gagal memperbarui data pasien. Pastikan backend aktif dan coba lagi.'
+          : 'Gagal mendaftarkan pasien. Pastikan backend aktif dan coba lagi.');
       setError(errMsg);
     } finally {
       setIsSubmitting(false);
@@ -119,16 +172,38 @@ export default function TriageRegistrationPage() {
   const handleReset = () => {
     setResult(null);
     setError('');
-    setForm({
-      nama: '',
-      umur: '',
-      jenis_kelamin: 'L',
-      keluhan: '',
-      catatan: '',
-      vital: {},
-      assessment: {},
-    });
+    setForm(EMPTY_FORM);
   };
+
+  const handleBackToQueue = () => {
+    navigate('/antrean-live');
+  };
+
+  // ── Memuat data pasien (mode edit) ──
+  if (isEdit && isLoadingPatient) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Card title="Memuat data pasien...">
+          <p className="text-sm text-slate-500">Mengambil data registrasi dari database.</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isEdit && loadError) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Card title="Data tidak dapat dimuat">
+          <div className="rounded-lg bg-red-50 px-3.5 py-3 text-xs font-semibold text-red-700" role="alert">
+            {loadError}
+          </div>
+          <button type="button" onClick={handleBackToQueue} className={`${buttonPrimaryClass} mt-4`}>
+            Kembali ke Antrean Live
+          </button>
+        </Card>
+      </div>
+    );
+  }
 
   // ── Tampilan sukses setelah pendaftaran berhasil ──
   if (result) {
@@ -136,14 +211,16 @@ export default function TriageRegistrationPage() {
     const priorityInfo = PRIORITY_INFO[priorityKey] || PRIORITY_INFO.P3;
     return (
       <div className="mx-auto max-w-2xl">
-        <Card title="✅ Pasien Berhasil Didaftarkan">
+        <Card title={isEdit ? '✅ Perubahan Data Pasien Tersimpan' : '✅ Pasien Berhasil Didaftarkan'}>
           <div className="space-y-4">
-            <div className="rounded-xl bg-emerald-50 p-4">
-              <p className="text-sm font-bold text-emerald-800">Nomor Antrean</p>
-              <p className="mt-1 text-5xl font-extrabold tracking-tight text-emerald-700">
-                {result.queue?.nomor_antrean}
-              </p>
-            </div>
+            {result.queue?.nomor_antrean && (
+              <div className="rounded-xl bg-emerald-50 p-4">
+                <p className="text-sm font-bold text-emerald-800">Nomor Antrean</p>
+                <p className="mt-1 text-5xl font-extrabold tracking-tight text-emerald-700">
+                  {result.queue.nomor_antrean}
+                </p>
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Nama Pasien</p>
@@ -161,10 +238,12 @@ export default function TriageRegistrationPage() {
                   <p className="mt-1 text-2xl font-bold text-slate-900">{result.patient.skor_urgensi}</p>
                 </div>
               )}
-              <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-500">Status Antrean</p>
-                <p className="mt-1 text-sm font-bold text-slate-900">{result.queue?.status}</p>
-              </div>
+              {result.queue?.status && (
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="text-xs text-slate-500">Status Antrean</p>
+                  <p className="mt-1 text-sm font-bold text-slate-900">{result.queue.status}</p>
+                </div>
+              )}
             </div>
             {result.patient?.analisis_ai && (
               <div className="rounded-xl border border-brand-100 bg-brand-50 p-4">
@@ -177,9 +256,16 @@ export default function TriageRegistrationPage() {
                 </p>
               </div>
             )}
-            <button type="button" onClick={handleReset} className={buttonPrimaryClass}>
-              + Daftarkan Pasien Baru
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={handleBackToQueue} className={buttonPrimaryClass}>
+                Kembali ke Antrean Live
+              </button>
+              {!isEdit && (
+                <button type="button" onClick={handleReset} className={buttonOutlineClass}>
+                  + Daftarkan Pasien Baru
+                </button>
+              )}
+            </div>
           </div>
         </Card>
       </div>
@@ -189,6 +275,26 @@ export default function TriageRegistrationPage() {
   // ── Formulir pendaftaran ──
   return (
     <form onSubmit={handleSubmit} noValidate className="mx-auto grid max-w-6xl gap-6 xl:grid-cols-5">
+      {isEdit && (
+        <div className="xl:col-span-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-bold text-brand-800">Mode edit registrasi pasien</p>
+                <p className="text-xs text-brand-700">
+                  Perubahan akan memperbarui data pasien di database. Nomor antrean tetap selama prioritas tidak diubah.
+                </p>
+              </div>
+            </div>
+            <button type="button" onClick={handleBackToQueue} className={buttonOutlineClass}>
+              Batal &amp; kembali
+            </button>
+          </div>
+        </div>
+      )}
       <div className="space-y-6 xl:col-span-3">
         <Card
           title="Data dari pasien — belum diverifikasi"
@@ -395,8 +501,12 @@ export default function TriageRegistrationPage() {
             }`}
           >
             {isSubmitting
-              ? 'Mendaftarkan & Menganalisis AI...'
-              : 'Daftarkan Pasien ke Database'}
+              ? isEdit
+                ? 'Menyimpan perubahan...'
+                : 'Mendaftarkan & Menganalisis AI...'
+              : isEdit
+                ? 'Simpan Perubahan Data Pasien'
+                : 'Daftarkan Pasien ke Database'}
           </button>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <button type="button" className={buttonOutlineClass}>
@@ -407,9 +517,9 @@ export default function TriageRegistrationPage() {
             </button>
           </div>
           <p className="mt-4 text-xs leading-relaxed text-slate-400">
-            Pendaftaran akan mengirim data ke database Supabase PostgreSQL dan memproses analisis AI.
-            Prioritas akhir ditetapkan petugas klinis sesuai kewenangan. Alasan perubahan wajib
-            dicatat jika prioritas diubah; jalur darurat tetap tersedia.
+            {isEdit
+              ? 'Perubahan akan memperbarui data pasien pada database Supabase PostgreSQL. Prioritas akhir tetap ditetapkan petugas klinis sesuai kewenangan.'
+              : 'Pendaftaran akan mengirim data ke database Supabase PostgreSQL dan memproses analisis AI. Prioritas akhir ditetapkan petugas klinis sesuai kewenangan. Alasan perubahan wajib dicatat jika prioritas diubah; jalur darurat tetap tersedia.'}
           </p>
         </Card>
       </div>

@@ -1,5 +1,5 @@
-import { TriagePatient, Queue } from '../models/index.js';
-import { triageInputSchema } from '../schema/triage.schema.js';
+import { TriagePatient, Queue, Referral } from '../models/index.js';
+import { triageInputSchema, triageUpdateSchema } from '../schema/triage.schema.js';
 import { analyzeTriageWithAI } from '../config/ai.js';
 import sequelize from '../config/database.js';
 
@@ -35,32 +35,32 @@ export const registerTriagePatient = async (req, res, next) => {
     }, { transaction });
 
     // 4. Generate Nomor Antrean
-    // Kita tentukan prefix berdasarkan prioritas:
-    // P1 -> A (Merah), P2 -> B (Kuning), P3 -> C (Hijau), P0 -> D (Hitam)
-    let prefix = 'C';
-    if (finalPrioritas === 'P1') prefix = 'A';
-    else if (finalPrioritas === 'P2') prefix = 'B';
-    else if (finalPrioritas === 'P0') prefix = 'D';
-
-    // Hitung jumlah antrean hari ini dengan prefix yang sama untuk menentukan nomor urut
+    // Nomor antrean digabung menjadi satu urutan harian (tanpa prefix A/B/C/D),
+    // sehingga seluruh pasien memakai satu deret nomor yang berurutan.
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    const queueCount = await Queue.count({
+    const todayQueues = await Queue.findAll({
       where: {
         createdAt: {
           [sequelize.Sequelize.Op.between]: [todayStart, todayEnd],
         },
-        nomor_antrean: {
-          [sequelize.Sequelize.Op.like]: `${prefix}%`,
-        },
       },
+      attributes: ['nomor_antrean'],
+      transaction,
     });
 
-    const nextNumber = String(queueCount + 1).padStart(2, '0');
-    const nomorAntrean = `${prefix}-${nextNumber}`;
+    // Ambil nomor terbesar hari ini agar tidak terjadi duplikasi
+    // (mis. setelah ada antrean yang dihapus).
+    const lastNumber = todayQueues.reduce((max, q) => {
+      const match = String(q.nomor_antrean || '').match(/(\d+)\s*$/);
+      const value = match ? parseInt(match[1], 10) : 0;
+      return Number.isNaN(value) ? max : Math.max(max, value);
+    }, 0);
+
+    const nomorAntrean = String(lastNumber + 1).padStart(2, '0');
 
     // 5. Buat entri antrean (Queue) baru
     const queue = await Queue.create({
@@ -143,6 +143,121 @@ export const getTriagePatientById = async (req, res, next) => {
       data: patient,
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+// Pemetaan prioritas ke prefix nomor antrean tidak lagi digunakan karena
+// nomor antrean memakai satu urutan harian yang digabung (tanpa A/B/C/D).
+
+/**
+ * Memperbarui data registrasi pasien triase (mode edit dari halaman antrean)
+ */
+export const updateTriagePatient = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const patient = await TriagePatient.findByPk(req.params.id, { transaction });
+    if (!patient) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: 'error',
+        message: 'Pasien tidak ditemukan.',
+      });
+    }
+
+    const data = triageUpdateSchema.parse(req.body);
+    const priorityChanged =
+      data.prioritas_triage !== undefined && data.prioritas_triage !== patient.prioritas_triage;
+
+    const updates = {};
+    if (data.nama_pasien !== undefined) updates.nama_pasien = data.nama_pasien;
+    if (data.umur !== undefined) updates.umur = data.umur;
+    if (data.jenis_kelamin !== undefined) updates.jenis_kelamin = data.jenis_kelamin;
+    if (data.keluhan_utama !== undefined) updates.keluhan_utama = data.keluhan_utama;
+    if (data.tanda_vital !== undefined) updates.tanda_vital = data.tanda_vital;
+    if (data.prioritas_triage !== undefined) updates.prioritas_triage = data.prioritas_triage;
+    if (data.catatan_petugas !== undefined) updates.catatan_petugas = data.catatan_petugas;
+
+    if (priorityChanged) {
+      updates.status_verifikasi = 'OVERRIDDEN';
+      if (data.alasan_perubahan) {
+        updates.catatan_petugas = [patient.catatan_petugas, `Perubahan prioritas: ${data.alasan_perubahan}`]
+          .filter(Boolean)
+          .join('\n');
+      }
+    }
+
+    await patient.update(updates, { transaction });
+
+    // Ambil antrean terkait untuk dikembalikan pada respons. Nomor antrean kini
+    // memakai satu urutan harian, jadi tidak perlu diubah saat prioritas berubah.
+    const queue = await Queue.findOne({
+      where: { triage_patient_id: patient.id },
+      transaction,
+    });
+
+    await transaction.commit();
+
+    return res.json({
+      status: 'success',
+      message: 'Data registrasi pasien berhasil diperbarui.',
+      data: {
+        patient: {
+          id: patient.id,
+          nama_pasien: patient.nama_pasien,
+          umur: patient.umur,
+          jenis_kelamin: patient.jenis_kelamin,
+          keluhan_utama: patient.keluhan_utama,
+          tanda_vital: patient.tanda_vital,
+          catatan_petugas: patient.catatan_petugas,
+          prioritas_triage: patient.prioritas_triage,
+          skor_urgensi: patient.skor_urgensi,
+          analisis_ai: patient.analisis_ai,
+        },
+        queue: queue
+          ? { id: queue.id, nomor_antrean: queue.nomor_antrean, status: queue.status }
+          : null,
+      },
+    });
+  } catch (error) {
+    await transaction.rollback();
+    if (error.name === 'ZodError') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Validasi data gagal.',
+        errors: error.issues || error.errors,
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * Menghapus data registrasi pasien triase beserta antreannya
+ */
+export const deleteTriagePatient = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const patient = await TriagePatient.findByPk(req.params.id, { transaction });
+    if (!patient) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: 'error',
+        message: 'Pasien tidak ditemukan.',
+      });
+    }
+
+    await Queue.destroy({ where: { triage_patient_id: patient.id }, transaction });
+    await Referral.destroy({ where: { triage_patient_id: patient.id }, transaction });
+    await patient.destroy({ transaction });
+    await transaction.commit();
+
+    return res.json({
+      status: 'success',
+      message: 'Data registrasi pasien berhasil dihapus.',
+    });
+  } catch (error) {
+    await transaction.rollback();
     next(error);
   }
 };

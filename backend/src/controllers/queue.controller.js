@@ -1,4 +1,4 @@
-import { Queue, TriagePatient, User } from '../models/index.js';
+import { Queue, TriagePatient, Referral, User } from '../models/index.js';
 import sequelize from '../config/database.js';
 
 /**
@@ -169,6 +169,105 @@ export const cancelQueue = async (req, res, next) => {
       data: queue,
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Eskalasi petugas untuk pasien kritis (kode Merah): menandai antrean sebagai
+ * sedang dipanggil/dieskalasi ke petugas berwenang dan mencatat waktu panggil.
+ */
+export const escalateQueue = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { dokter_id, catatan_tindakan } = req.body || {};
+
+    const queue = await Queue.findByPk(id);
+    if (!queue) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Antrean tidak ditemukan.',
+      });
+    }
+
+    queue.status = 'CALLING';
+    queue.waktu_panggil = new Date();
+    if (dokter_id) queue.dokter_id = dokter_id;
+    if (catatan_tindakan) queue.catatan_tindakan = catatan_tindakan;
+    await queue.save();
+
+    return res.json({
+      status: 'success',
+      message: 'Eskalasi petugas berhasil dikirim.',
+      data: queue,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Mencatat tindakan petugas pada antrean (mis. pasien Merah yang sudah ditangani).
+ */
+export const recordAction = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { catatan_tindakan } = req.body || {};
+
+    const queue = await Queue.findByPk(id);
+    if (!queue) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Antrean tidak ditemukan.',
+      });
+    }
+
+    queue.status = 'SERVING';
+    if (catatan_tindakan != null) queue.catatan_tindakan = catatan_tindakan;
+    await queue.save();
+
+    return res.json({
+      status: 'success',
+      message: 'Tindakan berhasil dicatat.',
+      data: queue,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Menghapus satu antrean beserta data pasien triase terkait.
+ */
+export const deleteQueue = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+
+    const queue = await Queue.findByPk(id, { transaction });
+    if (!queue) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: 'error',
+        message: 'Antrean tidak ditemukan.',
+      });
+    }
+
+    const patientId = queue.triage_patient_id;
+    await queue.destroy({ transaction });
+    if (patientId) {
+      await Referral.destroy({ where: { triage_patient_id: patientId }, transaction });
+      await TriagePatient.destroy({ where: { id: patientId }, transaction });
+    }
+
+    await transaction.commit();
+
+    return res.json({
+      status: 'success',
+      message: 'Antrean dan data pasien berhasil dihapus.',
+    });
+  } catch (error) {
+    await transaction.rollback();
     next(error);
   }
 };
