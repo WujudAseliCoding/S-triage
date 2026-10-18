@@ -101,12 +101,14 @@ export default function PatientFormPage() {
       };
 
       const res = await registerTriagePatient(payload);
+      const nomorAntrean = res?.queue?.nomor_antrean || '-';
       const referensi = `REG-${String(res?.patient?.id ?? '').slice(0, 8).toUpperCase()}`;
 
       navigate('/antrean', {
         state: {
           submission: {
             ...data,
+            nomorAntrean,
             referensi,
           },
         },
