@@ -1,4 +1,5 @@
 import { Queue, TriagePatient, Referral, User } from '../models/index.js';
+import { renumberQueuesForDay } from '../utils/queueNumber.js';
 import sequelize from '../config/database.js';
 
 /**
@@ -254,11 +255,15 @@ export const deleteQueue = async (req, res, next) => {
     }
 
     const patientId = queue.triage_patient_id;
+    const dayRef = queue.createdAt;
     await queue.destroy({ transaction });
     if (patientId) {
       await Referral.destroy({ where: { triage_patient_id: patientId }, transaction });
       await TriagePatient.destroy({ where: { id: patientId }, transaction });
     }
+
+    // Rapikan kembali nomor antrean hari itu agar tetap berurutan
+    await renumberQueuesForDay(dayRef, transaction);
 
     await transaction.commit();
 

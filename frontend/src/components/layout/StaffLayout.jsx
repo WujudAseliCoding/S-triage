@@ -74,11 +74,10 @@ export default function StaffLayout() {
 
         <div className="mt-auto flex items-center gap-3 border-t border-slate-100 px-1 pt-4">
           <span className="flex size-8 items-center justify-center rounded-full bg-brand-800 text-[10px] font-bold text-white">
-            USU
+            LGN
           </span>
           <div className="text-[11px] leading-tight">
-            <p className="font-semibold text-slate-700">Fakultas Ilmu Komputer</p>
-            <p className="text-slate-400">Universitas Sumatera Utara</p>
+            <p className="font-semibold text-slate-700">Loncat ga nih™</p>
           </div>
         </div>
       </aside>

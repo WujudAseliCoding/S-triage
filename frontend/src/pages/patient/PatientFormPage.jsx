@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ChevronDown, ChevronRight, ClipboardList, LogIn } from 'lucide-react';
 import FormField from '../../components/common/FormField';
 import EmergencyBox from '../../components/patient/EmergencyBox';
 import { AGE_UNITS } from '../../utils/constants';
@@ -9,7 +9,7 @@ import {
   PATIENT_FORM_SUMMARY,
   patientFormSchema,
 } from '../../utils/patientFormSchema';
-import { inputClass } from '../../utils/styles';
+import { buttonOutlineClass, inputClass } from '../../utils/styles';
 import { registerTriagePatient } from '../../services/triageService';
 
 const checkboxClass = 'size-5 shrink-0 rounded border-slate-300 accent-brand-700';
@@ -397,6 +397,14 @@ export default function PatientFormPage() {
           berdasarkan kondisi. Jika memburuk, segera minta bantuan petugas.
         </p>
       </section>
+
+      <Link
+        to="/login"
+        className={`${buttonOutlineClass} flex w-full items-center justify-center gap-2 py-3.5`}
+      >
+        <LogIn className="size-4" aria-hidden="true" />
+        Masuk sebagai Petugas / Admin
+      </Link>
     </form>
   );
 }

@@ -38,6 +38,13 @@ function QueueCard({ patient, onCall, onServe, onFinish, onEdit, onDelete, onEsc
               {patient.nomor_antrean}
             </span>
           )}
+          <span
+            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${data.badgeClass}`}
+            title={`Klasifikasi: ${data.label} — ${data.description}`}
+          >
+            <span className={`size-1.5 rounded-full ${data.dotClass}`} aria-hidden="true" />
+            {data.label}
+          </span>
           <button
             type="button"
             onClick={() => onEdit && onEdit(patient)}
@@ -576,14 +583,14 @@ export default function LiveQueuePage() {
       <InfoPanel title="Penerimaan pengajuan pasien • Estimasi pasien">
         Belum ada pengajuan terhubung. Petugas mencocokkan identitas/no. RM, memverifikasi data, lalu
         melakukan asesmen. Pengajuan tidak otomatis mendapat prioritas Hijau. Tampilan publik hanya
-        nomor panggil dan lokasi, bukan nama, NIK, atau keluhan. Nomor tiket tetap; urutan panggil
-        berubah berdasarkan klasifikasi urgensi dan keputusan petugas.
+        nomor panggil dan lokasi, bukan nama, NIK, atau keluhan. Nomor antrean disusun mulai dari
+        tingkat risiko paling tinggi (P1 → P2 → P3 → P0), lalu berdasarkan waktu masuk.
       </InfoPanel>
 
       <InfoPanel title="Pemantauan estimasi pasien">
         <p>
-          Nomor tiket tetap; urutan panggil berubah berdasarkan klasifikasi urgensi dan keputusan
-          petugas. Tidak ada janji waktu maksimal absolut.
+          Nomor antrean disusun mulai dari tingkat risiko paling tinggi (P1 → P2 → P3 → P0), lalu
+          berdasarkan waktu masuk. Tidak ada janji waktu maksimal absolut.
         </p>
         <dl className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-5">
           {[

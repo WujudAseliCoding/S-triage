@@ -1,5 +1,6 @@
 import { TriagePatient, Queue, Referral } from '../models/index.js';
 import { triageInputSchema, triageUpdateSchema } from '../schema/triage.schema.js';
+import { renumberQueuesForDay } from '../utils/queueNumber.js';
 import { analyzeTriageWithAI } from '../config/ai.js';
 import sequelize from '../config/database.js';
 
@@ -34,40 +35,17 @@ export const registerTriagePatient = async (req, res, next) => {
       analisis_ai: finalAnalisisAI,
     }, { transaction });
 
-    // 4. Generate Nomor Antrean
-    // Nomor antrean digabung menjadi satu urutan harian (tanpa prefix A/B/C/D),
-    // sehingga seluruh pasien memakai satu deret nomor yang berurutan.
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-
-    const todayQueues = await Queue.findAll({
-      where: {
-        createdAt: {
-          [sequelize.Sequelize.Op.between]: [todayStart, todayEnd],
-        },
-      },
-      attributes: ['nomor_antrean'],
-      transaction,
-    });
-
-    // Ambil nomor terbesar hari ini agar tidak terjadi duplikasi
-    // (mis. setelah ada antrean yang dihapus).
-    const lastNumber = todayQueues.reduce((max, q) => {
-      const match = String(q.nomor_antrean || '').match(/(\d+)\s*$/);
-      const value = match ? parseInt(match[1], 10) : 0;
-      return Number.isNaN(value) ? max : Math.max(max, value);
-    }, 0);
-
-    const nomorAntrean = String(lastNumber + 1).padStart(2, '0');
-
-    // 5. Buat entri antrean (Queue) baru
+    // 4. Buat entri antrean (Queue) baru.
+    // Nomor antrean final ditentukan setelah ini oleh renumberQueuesForDay():
+    // seluruh antrean hari ini diurutkan dari tingkat risiko paling tinggi.
     const queue = await Queue.create({
-      nomor_antrean: nomorAntrean,
+      nomor_antrean: '00',
       status: 'WAITING',
       triage_patient_id: patient.id,
     }, { transaction });
+
+    await renumberQueuesForDay(queue.createdAt, transaction);
+    await queue.reload({ transaction });
 
     await transaction.commit();
 
@@ -189,12 +167,18 @@ export const updateTriagePatient = async (req, res, next) => {
 
     await patient.update(updates, { transaction });
 
-    // Ambil antrean terkait untuk dikembalikan pada respons. Nomor antrean kini
-    // memakai satu urutan harian, jadi tidak perlu diubah saat prioritas berubah.
+    // Ambil antrean terkait untuk dikembalikan pada respons.
     const queue = await Queue.findOne({
       where: { triage_patient_id: patient.id },
       transaction,
     });
+
+    // Jika prioritas berubah, urutkan ulang nomor antrean hari itu
+    // (dari tingkat risiko paling tinggi) lalu muat ulang nomornya.
+    if (queue && priorityChanged) {
+      await renumberQueuesForDay(queue.createdAt, transaction);
+      await queue.reload({ transaction });
+    }
 
     await transaction.commit();
 
@@ -247,9 +231,19 @@ export const deleteTriagePatient = async (req, res, next) => {
       });
     }
 
+    const queue = await Queue.findOne({
+      where: { triage_patient_id: patient.id },
+      transaction,
+    });
+    const dayRef = queue?.createdAt || patient.createdAt;
+
     await Queue.destroy({ where: { triage_patient_id: patient.id }, transaction });
     await Referral.destroy({ where: { triage_patient_id: patient.id }, transaction });
     await patient.destroy({ transaction });
+
+    // Rapikan kembali nomor antrean hari itu agar tetap berurutan
+    await renumberQueuesForDay(dayRef, transaction);
+
     await transaction.commit();
 
     return res.json({

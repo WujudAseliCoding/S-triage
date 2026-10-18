@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { CircleCheck, Clock, Stethoscope, UserRound } from 'lucide-react';
 import EmergencyBox from './EmergencyBox';
+import PriorityBadge from '../common/PriorityBadge';
 import { buttonOutlineClass } from '../../utils/styles';
 
 function formatAge(submission) {
@@ -26,6 +27,9 @@ const STEPS = [
 ];
 
 export default function SubmissionSuccess({ submission }) {
+  // Klasifikasi triase hasil penilaian awal (merah/kuning/hijau).
+  const priorityKey = submission.priority || 'hijau';
+
   return (
     <div className="space-y-6 px-4 py-6">
       <div>
@@ -45,9 +49,15 @@ export default function SubmissionSuccess({ submission }) {
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-        <p className="text-sm text-slate-500">Referensi pengajuan</p>
-        <p className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900">{submission.referensi}</p>
-        <p className="mt-1 text-sm text-slate-500">Bukan nomor antrean.</p>
+        <p className="text-sm text-slate-500">Nomor antrean Anda</p>
+        <div className="mt-1 flex flex-wrap items-center gap-2.5">
+          <p className="text-2xl font-extrabold tracking-tight text-slate-900">{submission.referensi}</p>
+          <PriorityBadge priority={priorityKey} withDescription />
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Klasifikasi awal dari sistem berdasarkan keluhan Anda; dapat berubah setelah penilaian
+          ulang petugas.
+        </p>
 
         <div className="my-4 border-t border-slate-100" />
 
@@ -107,9 +117,9 @@ export default function SubmissionSuccess({ submission }) {
         </h2>
         <dl className="mt-4 space-y-4 border-t border-slate-100 pt-4 text-sm">
           {[
-            ['Nomor tiket', 'Tersedia setelah verifikasi & asesmen'],
+            ['Nomor tiket', submission.referensi],
             ['Estimasi waktu tunggu', 'Belum tersedia'],
-            ['Prioritas klinis', 'Ditentukan petugas'],
+            ['Prioritas klinis', <PriorityBadge priority={priorityKey} />],
           ].map(([term, value]) => (
             <div key={term}>
               <dt className="text-slate-500">{term}</dt>
@@ -120,8 +130,8 @@ export default function SubmissionSuccess({ submission }) {
           ))}
         </dl>
         <p className="mt-4 border-t border-slate-100 pt-4 text-xs leading-relaxed text-slate-500">
-          Informasi antrean di atas bersifat statis. Tiket pribadi dan estimasi baru tersedia setelah
-          petugas menyelesaikan verifikasi dan asesmen kondisi Anda.
+          Nomor dan klasifikasi awal di atas merupakan hasil penilaian awal sistem. Petugas dapat
+          memperbaruinya setelah verifikasi dan asesmen kondisi Anda.
         </p>
       </section>
 
