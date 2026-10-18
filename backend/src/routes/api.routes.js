@@ -36,7 +36,11 @@ import {
   updateDoctorStatus
 } from '../controllers/doctor.controller.js';
 import { getFacilities } from '../controllers/facility.controller.js';
-import { getDashboardStats, getAnalyticsStats } from '../controllers/dashboard.controller.js';
+import {
+  getDashboardStats,
+  getAnalyticsStats,
+  exportAnalytics,
+} from '../controllers/dashboard.controller.js';
 
 const router = Router();
 
@@ -48,6 +52,7 @@ router.use('/auth', authRoutes);
 // Dashboard & Analytics
 router.get('/dashboard/stats', getDashboardStats);
 router.get('/analytics/stats', getAnalyticsStats);
+router.get('/analytics/export', exportAnalytics);
 
 // Doctors & Staff Management
 router.get('/doctors', getDoctors);

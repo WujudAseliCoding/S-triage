@@ -41,7 +41,6 @@ export default function DoctorManagementPage() {
   const [doctors, setDoctors] = useState([]);
   const [nurses, setNurses] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
-  const [isLive, setIsLive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState(null);
 
@@ -89,7 +88,6 @@ export default function DoctorManagementPage() {
       if (nurseData) {
         setNurses(nurseData);
       }
-      setIsLive(true);
     } catch (err) {
       console.warn('Gagal memuat petugas dari database:', err);
       setNotification({

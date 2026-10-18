@@ -36,5 +36,8 @@ S-triage/
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
+
+# Documentation & Assets
+docs/
+mockup/
