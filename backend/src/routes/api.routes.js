@@ -19,9 +19,16 @@ import {
   createReferral,
   getReferrals,
   getReferralById,
-  updateReferralStatus
+  updateReferralStatus,
+  updateReferral
 } from '../controllers/referral.controller.js';
-import { getDoctors, updateDoctorStatus } from '../controllers/doctor.controller.js';
+import {
+  getDoctors,
+  getNurses,
+  createDoctor,
+  updateDoctor,
+  updateDoctorStatus
+} from '../controllers/doctor.controller.js';
 import { getFacilities } from '../controllers/facility.controller.js';
 import { getDashboardStats, getAnalyticsStats } from '../controllers/dashboard.controller.js';
 
@@ -36,8 +43,11 @@ router.use('/auth', authRoutes);
 router.get('/dashboard/stats', getDashboardStats);
 router.get('/analytics/stats', getAnalyticsStats);
 
-// Doctors Management
+// Doctors & Staff Management
 router.get('/doctors', getDoctors);
+router.get('/doctors/nurses', getNurses);
+router.post('/doctors', createDoctor);
+router.put('/doctors/:id', updateDoctor);
 router.put('/doctors/:id/status', updateDoctorStatus);
 
 // External Referral Facilities
@@ -64,5 +74,6 @@ router.post('/referrals', createReferral);
 router.get('/referrals', getReferrals);
 router.get('/referrals/:id', getReferralById);
 router.put('/referrals/status/:id', updateReferralStatus);
+router.put('/referrals/:id', updateReferral);
 
 export default router;

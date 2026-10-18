@@ -9,12 +9,31 @@ export const createReferral = async (req, res, next) => {
   try {
     const {
       triage_patient_id,
+      facility_id,
       faskes_tujuan,
       alasan_rujukan,
+      ringkasan_kondisi,
+      tanda_vital_terakhir,
+      tindakan_stabilisasi,
+      kebutuhan_layanan,
+      kesiapan_menerima,
+      transportasi = 'Ambulans Faskes',
+      petugas_pengirim = 'dr. Faisal Rahman',
+      status_rujukan = 'Menunggu konfirmasi',
       catatan_medis,
+      catatan_serah_terima,
     } = req.body;
 
-    // 1. Validasi apakah pasien triase ada
+    // 1. Validasi input wajib
+    if (!triage_patient_id || !faskes_tujuan) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: 'error',
+        message: 'Pasien triase dan faskes tujuan wajib dipilih.',
+      });
+    }
+
+    // 2. Validasi apakah pasien triase ada
     const patient = await TriagePatient.findByPk(triage_patient_id);
     if (!patient) {
       await transaction.rollback();
@@ -24,30 +43,45 @@ export const createReferral = async (req, res, next) => {
       });
     }
 
-    // 2. Buat record rujukan eksternal
+    // 3. Buat record rujukan eksternal lengkap
     const referral = await Referral.create({
       triage_patient_id,
+      facility_id: facility_id || null,
       faskes_tujuan,
-      alasan_rujukan,
-      catatan_medis,
-      status_rujukan: 'PENDING',
+      alasan_rujukan: alasan_rujukan || 'Rujukan pemeriksaan dan penanganan spesialis lanjutan.',
+      ringkasan_kondisi: ringkasan_kondisi || null,
+      tanda_vital_terakhir: tanda_vital_terakhir || patient.tanda_vital || null,
+      tindakan_stabilisasi: tindakan_stabilisasi || null,
+      kebutuhan_layanan: kebutuhan_layanan || null,
+      kesiapan_menerima: kesiapan_menerima || null,
+      transportasi,
+      petugas_pengirim,
+      status_rujukan,
+      catatan_medis: catatan_medis || null,
+      catatan_serah_terima: catatan_serah_terima || null,
     }, { transaction });
 
-    // 3. Update status antrean terkait menjadi REFER_OUT jika antreannya masih aktif
-    const queue = await Queue.findOne({
-      where: { triage_patient_id },
-    });
-    if (queue) {
-      queue.status = 'REFER_OUT';
-      await queue.save({ transaction });
+    // 4. Update status antrean terkait menjadi REFER_OUT jika antreannya masih aktif dan bukan sekadar draf
+    if (status_rujukan !== 'Draf') {
+      const queue = await Queue.findOne({
+        where: { triage_patient_id },
+      });
+      if (queue) {
+        queue.status = 'REFER_OUT';
+        await queue.save({ transaction });
+      }
     }
 
     await transaction.commit();
 
+    const createdReferral = await Referral.findByPk(referral.id, {
+      include: [{ model: TriagePatient, as: 'patient' }],
+    });
+
     return res.status(201).json({
       status: 'success',
       message: 'Rujukan eksternal berhasil dicatat.',
-      data: referral,
+      data: createdReferral,
     });
   } catch (error) {
     await transaction.rollback();
@@ -145,12 +179,103 @@ export const updateReferralStatus = async (req, res, next) => {
     if (catatan_medis) referral.catatan_medis = catatan_medis;
     await referral.save();
 
+    if (status_rujukan !== 'Draf') {
+      const queue = await Queue.findOne({
+        where: { triage_patient_id: referral.triage_patient_id },
+      });
+      if (queue && queue.status !== 'REFER_OUT') {
+        queue.status = 'REFER_OUT';
+        await queue.save();
+      }
+    }
+
+    const updated = await Referral.findByPk(id, {
+      include: [{ model: TriagePatient, as: 'patient' }],
+    });
+
     return res.json({
       status: 'success',
       message: `Status rujukan berhasil diperbarui menjadi ${status_rujukan}.`,
-      data: referral,
+      data: updated,
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Memperbarui data detail rujukan secara menyeluruh
+ */
+export const updateReferral = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const referral = await Referral.findByPk(id, { transaction });
+    if (!referral) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: 'error',
+        message: 'Data rujukan tidak ditemukan.',
+      });
+    }
+
+    const {
+      faskes_tujuan,
+      facility_id,
+      alasan_rujukan,
+      ringkasan_kondisi,
+      tanda_vital_terakhir,
+      tindakan_stabilisasi,
+      kebutuhan_layanan,
+      kesiapan_menerima,
+      transportasi,
+      petugas_pengirim,
+      status_rujukan,
+      catatan_medis,
+      catatan_serah_terima,
+    } = req.body;
+
+    if (faskes_tujuan !== undefined) referral.faskes_tujuan = faskes_tujuan;
+    if (facility_id !== undefined) referral.facility_id = facility_id;
+    if (alasan_rujukan !== undefined) referral.alasan_rujukan = alasan_rujukan;
+    if (ringkasan_kondisi !== undefined) referral.ringkasan_kondisi = ringkasan_kondisi;
+    if (tanda_vital_terakhir !== undefined) referral.tanda_vital_terakhir = tanda_vital_terakhir;
+    if (tindakan_stabilisasi !== undefined) referral.tindakan_stabilisasi = tindakan_stabilisasi;
+    if (kebutuhan_layanan !== undefined) referral.kebutuhan_layanan = kebutuhan_layanan;
+    if (kesiapan_menerima !== undefined) referral.kesiapan_menerima = kesiapan_menerima;
+    if (transportasi !== undefined) referral.transportasi = transportasi;
+    if (petugas_pengirim !== undefined) referral.petugas_pengirim = petugas_pengirim;
+    if (catatan_medis !== undefined) referral.catatan_medis = catatan_medis;
+    if (catatan_serah_terima !== undefined) referral.catatan_serah_terima = catatan_serah_terima;
+
+    if (status_rujukan !== undefined) {
+      referral.status_rujukan = status_rujukan;
+      if (status_rujukan !== 'Draf') {
+        const queue = await Queue.findOne({
+          where: { triage_patient_id: referral.triage_patient_id },
+          transaction,
+        });
+        if (queue && queue.status !== 'REFER_OUT') {
+          queue.status = 'REFER_OUT';
+          await queue.save({ transaction });
+        }
+      }
+    }
+
+    await referral.save({ transaction });
+    await transaction.commit();
+
+    const updated = await Referral.findByPk(id, {
+      include: [{ model: TriagePatient, as: 'patient' }],
+    });
+
+    return res.json({
+      status: 'success',
+      message: 'Data rujukan berhasil diperbarui.',
+      data: updated,
+    });
+  } catch (error) {
+    await transaction.rollback();
     next(error);
   }
 };
