@@ -105,7 +105,11 @@ export default function PatientFormPage() {
       // Antrean; the full classification block is still not exposed.
       const res = await submitPatientIntake(payload);
       const nomorAntrean = res?.queue?.nomor_antrean || '-';
-      const referensi = res?.referensi || `REG-${String(res?.id ?? '').slice(0, 8).toUpperCase()}`;
+      const referensi =
+        res?.referensi ||
+        `REG-${String(res?.patient?.id || res?.id || '').slice(0, 8).toUpperCase()}`;
+      const prioritas = res?.prioritas_triage || res?.patient?.prioritas_triage;
+      const priority = priorityKeyFromCode(prioritas);
 
       navigate('/antrean', {
         state: {
@@ -113,7 +117,7 @@ export default function PatientFormPage() {
             ...data,
             nomorAntrean,
             referensi,
-            priority: priorityKeyFromCode(res?.prioritas_triage),
+            priority,
           },
         },
       });
