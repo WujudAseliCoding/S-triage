@@ -40,4 +40,14 @@ export const TRIAGE_PRIORITY = {
   },
 };
 
+// Satu sumber pemetaan kode kategori operasional (backend) -> token warna UI.
+// Dipakai bersama halaman pasien dan halaman petugas agar warna indikator
+// urgensi selalu identik (tidak bisa lagi berbeda antar halaman).
+export const PRIORITY_CODE_TO_KEY = { P1: 'merah', P2: 'kuning', P3: 'hijau' };
+
+export const priorityKeyFromCode = (code) => {
+  if (code === 'merah' || code === 'kuning' || code === 'hijau') return code;
+  return PRIORITY_CODE_TO_KEY[code] || 'hijau';
+};
+
 export const AGE_UNITS = ['Tahun', 'Bulan', 'Hari'];

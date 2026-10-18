@@ -18,7 +18,9 @@ app.listen(PORT, async () => {
 
   if (process.env.NODE_ENV !== 'production') {
     try {
-      await sequelize.sync();
+      // Dev-only: `alter: true` also adds newly introduced audit columns to
+      // existing tables. Do not use on a production database.
+      await sequelize.sync({ alter: true });
       console.log('✅ Tabel database disinkronkan dari model.');
     } catch (error) {
       console.warn('⚠️  Sinkronisasi tabel gagal:', error.message);

@@ -41,9 +41,9 @@ async function runTests() {
     });
     console.log(`✅ Pasien "${patient.nama_pasien}" berhasil disimpan dengan ID: ${patient.id}`);
 
-    // Generate Nomor Antrean
-    let prefix = patient.prioritas_triage === 'P1' ? 'A' : patient.prioritas_triage === 'P2' ? 'B' : 'C';
-    const nomorAntrean = `${prefix}-01`;
+    // Generate Nomor Antrean (satu urutan harian, tanpa prefix A/B/C/D)
+    const queueCount = await Queue.count();
+    const nomorAntrean = String(queueCount + 1).padStart(2, '0');
 
     const queue = await Queue.create({
       nomor_antrean: nomorAntrean,

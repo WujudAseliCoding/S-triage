@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Mail } from 'lucide-react';
+import { ClipboardList, Mail } from 'lucide-react';
 import { z } from 'zod';
 import Logo from '../../components/common/Logo';
 import FormField from '../../components/common/FormField';
@@ -8,7 +8,7 @@ import PasswordInput from '../../components/common/PasswordInput';
 import PriorityBadge from '../../components/common/PriorityBadge';
 import { useAuth } from '../../hooks/useAuth';
 import api from '../../services/api';
-import { buttonPrimaryClass } from '../../utils/styles';
+import { buttonOutlineClass, buttonPrimaryClass } from '../../utils/styles';
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, 'Isi alamat email.').email('Format email tidak valid.'),
@@ -197,6 +197,17 @@ export default function LoginPage() {
               {submitting ? 'Memproses…' : 'Masuk sebagai Petugas'}
             </button>
           </form>
+
+          <div className="mt-5 flex items-center gap-3">
+            <span className="h-px flex-1 bg-slate-200" aria-hidden="true" />
+            <span className="text-xs font-medium text-slate-400">atau</span>
+            <span className="h-px flex-1 bg-slate-200" aria-hidden="true" />
+          </div>
+
+          <Link to="/formulir" className={`${buttonOutlineClass} mt-5 w-full py-3.5`}>
+            <ClipboardList className="size-4" aria-hidden="true" />
+            Sampaikan Keluhan (Pasien, tanpa login)
+          </Link>
 
           <p className="mt-6 text-center text-sm text-slate-500">
             Belum punya akun?{' '}

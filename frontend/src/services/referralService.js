@@ -23,9 +23,15 @@ export const updateReferralStatus = async (id, status, notes) => {
   return response.data?.data;
 };
 
+export const updateReferral = async (id, data) => {
+  const response = await api.put(`/referrals/${id}`, data);
+  return response.data?.data;
+};
+
 export default {
   getFacilities,
   getReferrals,
   createReferral,
   updateReferralStatus,
+  updateReferral,
 };

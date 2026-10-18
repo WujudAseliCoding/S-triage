@@ -1,20 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthContext } from './authContextValue';
-
-// Inisialisasi pengecekan token dari localStorage
-// TODO: Ambil data user dari endpoint /api/auth/me jika ada token
-const readStoredUser = () => {
-  try {
-    const stored = localStorage.getItem('user');
-    return localStorage.getItem('token') && stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-};
+import api from '../services/api';
 
 // Auth hanya untuk petugas faskes. Pasien mengakses formulir & antrean tanpa login.
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(readStoredUser);
+  const [user, setUser] = useState(null);
+  // Bila tidak ada token, tidak ada verifikasi yang berjalan → langsung selesai memuat.
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return;
+    }
+    // Verifikasi token ke backend: ambil data user terkini dari /api/auth/me
+    api
+      .get('/auth/me')
+      .then(({ data }) => {
+        setUser(data.data.user);
+      })
+      .catch(() => {
+        // Token tidak valid / expired — bersihkan sesi
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   const login = (userData, token) => {
     localStorage.setItem('token', token);
@@ -28,9 +42,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  // loading tetap disediakan agar siap dipakai saat verifikasi token ke backend ditambahkan.
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading: false }}>
+    <AuthContext.Provider value={{ user, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
