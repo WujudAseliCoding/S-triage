@@ -8,6 +8,7 @@ import {
   updateTriagePatient,
   deleteTriagePatient
 } from '../controllers/triage.controller.js';
+import { verifyToken } from '../middlewares/authMiddleware.js';
 import {
   getLiveQueue,
   callPatient,
@@ -22,9 +23,16 @@ import {
   createReferral,
   getReferrals,
   getReferralById,
-  updateReferralStatus
+  updateReferralStatus,
+  updateReferral
 } from '../controllers/referral.controller.js';
-import { getDoctors, updateDoctorStatus } from '../controllers/doctor.controller.js';
+import {
+  getDoctors,
+  getNurses,
+  createDoctor,
+  updateDoctor,
+  updateDoctorStatus
+} from '../controllers/doctor.controller.js';
 import { getFacilities } from '../controllers/facility.controller.js';
 import { getDashboardStats, getAnalyticsStats } from '../controllers/dashboard.controller.js';
 
@@ -39,8 +47,11 @@ router.use('/auth', authRoutes);
 router.get('/dashboard/stats', getDashboardStats);
 router.get('/analytics/stats', getAnalyticsStats);
 
-// Doctors Management
+// Doctors & Staff Management
 router.get('/doctors', getDoctors);
+router.get('/doctors/nurses', getNurses);
+router.post('/doctors', createDoctor);
+router.put('/doctors/:id', updateDoctor);
 router.put('/doctors/:id/status', updateDoctorStatus);
 
 // External Referral Facilities
@@ -49,11 +60,12 @@ router.get('/facilities', getFacilities);
 // === FOKUS B: CORE ENGINE TRIASE, INTEGRASI AI, & ANTREAN ===
 
 // Triage Patients Routes
+// Pendaftaran bersifat publik (pasien mengisi formulir via QR); data pasien hanya untuk petugas login.
 router.post('/triage/register', registerTriagePatient);
-router.get('/triage/patients', getTriagePatients);
-router.get('/triage/patients/:id', getTriagePatientById);
-router.put('/triage/patients/:id', updateTriagePatient);
-router.delete('/triage/patients/:id', deleteTriagePatient);
+router.get('/triage/patients', verifyToken, getTriagePatients);
+router.get('/triage/patients/:id', verifyToken, getTriagePatientById);
+router.put('/triage/patients/:id', verifyToken, updateTriagePatient);
+router.delete('/triage/patients/:id', verifyToken, deleteTriagePatient);
 
 // Live Queue Routes
 router.get('/queue/live', getLiveQueue);
@@ -70,5 +82,6 @@ router.post('/referrals', createReferral);
 router.get('/referrals', getReferrals);
 router.get('/referrals/:id', getReferralById);
 router.put('/referrals/status/:id', updateReferralStatus);
+router.put('/referrals/:id', updateReferral);
 
 export default router;

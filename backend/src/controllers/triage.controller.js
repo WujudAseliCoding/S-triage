@@ -1,8 +1,19 @@
-import { TriagePatient, Queue, Referral } from '../models/index.js';
-import { triageInputSchema, triageUpdateSchema } from '../schema/triage.schema.js';
+import { Op } from 'sequelize';
+import { TriagePatient, Queue, Referral, User } from '../models/index.js';
+import { triageInputSchema, triageVerifySchema } from '../schema/triage.schema.js';
 import { renumberQueuesForDay } from '../utils/queueNumber.js';
 import { analyzeTriageWithAI } from '../config/ai.js';
 import sequelize from '../config/database.js';
+
+const zodErrorResponse = (res, error) =>
+  res.status(400).json({
+    status: 'error',
+    message: error.issues?.[0]?.message || 'Validasi data gagal.',
+    errors: (error.issues || []).map((issue) => ({
+      field: issue.path.join('.'),
+      message: issue.message,
+    })),
+  });
 
 /**
  * Mendaftarkan pasien triase baru dan meng-generate antrean secara otomatis
@@ -23,21 +34,29 @@ export const registerTriagePatient = async (req, res, next) => {
     const finalSkorUrgensi = aiResult.skor_urgensi;
     const finalAnalisisAI = aiResult.analisis_ai;
 
-    // 3. Simpan data pasien triase
+    // 3. Simpan data pasien triase (status awal: BELUM_DIVERIFIKASI, menunggu verifikasi perawat)
     const patient = await TriagePatient.create({
       nama_pasien: validatedData.nama_pasien,
+      nik: validatedData.nik || null,
+      tanggal_lahir: validatedData.tanggal_lahir || null,
       umur: validatedData.umur,
+      satuan_umur: validatedData.satuan_umur || 'tahun',
       jenis_kelamin: validatedData.jenis_kelamin,
       keluhan_utama: validatedData.keluhan_utama,
+      waktu_mulai_keluhan: validatedData.waktu_mulai_keluhan || null,
+      alergi_obat: validatedData.alergi_obat || null,
       tanda_vital: validatedData.tanda_vital || {},
       prioritas_triage: finalPrioritas,
+      prioritas_ai: aiResult.prioritas_triage,
       skor_urgensi: finalSkorUrgensi,
       analisis_ai: finalAnalisisAI,
+      status_verifikasi: 'BELUM_DIVERIFIKASI',
     }, { transaction });
 
     // 4. Buat entri antrean (Queue) baru.
     // Nomor antrean final ditentukan setelah ini oleh renumberQueuesForDay():
-    // seluruh antrean hari ini diurutkan dari tingkat risiko paling tinggi.
+    // seluruh antrean hari itu diurutkan dari tingkat risiko paling tinggi
+    // dalam satu deret harian yang digabung (tanpa prefix A/B/C/D).
     const queue = await Queue.create({
       nomor_antrean: '00',
       status: 'WAITING',
@@ -70,11 +89,7 @@ export const registerTriagePatient = async (req, res, next) => {
   } catch (error) {
     await transaction.rollback();
     if (error.name === 'ZodError') {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Validasi data gagal.',
-        errors: error.errors,
-      });
+      return zodErrorResponse(res, error);
     }
     next(error);
   }
@@ -82,18 +97,52 @@ export const registerTriagePatient = async (req, res, next) => {
 
 /**
  * Mengambil daftar seluruh pasien triase
+ * Query `verifikasi`: pending (menunggu verifikasi) | done (sudah diverifikasi) | all (default)
+ * Pasien yang menunggu verifikasi diurutkan berdasarkan prioritas klinis, lalu waktu masuk terlama.
  */
 export const getTriagePatients = async (req, res, next) => {
   try {
-    const patients = await TriagePatient.findAll({
-      include: [
-        { model: Queue, as: 'queue' }
-      ],
-      order: [['createdAt', 'DESC']],
-    });
+    const { verifikasi = 'all' } = req.query;
+
+    const where = {};
+    if (verifikasi === 'pending') {
+      where.status_verifikasi = 'BELUM_DIVERIFIKASI';
+    } else if (verifikasi === 'done') {
+      where.status_verifikasi = { [Op.in]: ['DIVERIFIKASI', 'OVERRIDDEN'] };
+    }
+
+    const order = verifikasi === 'pending'
+      ? [
+          [sequelize.literal(`
+            CASE
+              WHEN "TriagePatient"."prioritas_triage" = 'P1' THEN 1
+              WHEN "TriagePatient"."prioritas_triage" = 'P2' THEN 2
+              WHEN "TriagePatient"."prioritas_triage" = 'P3' THEN 3
+              WHEN "TriagePatient"."prioritas_triage" = 'P0' THEN 4
+              ELSE 5
+            END
+          `), 'ASC'],
+          ['createdAt', 'ASC'],
+        ]
+      : [['createdAt', 'DESC']];
+
+    const [patients, pending, done] = await Promise.all([
+      TriagePatient.findAll({
+        where,
+        include: [
+          { model: Queue, as: 'queue' }
+        ],
+        order,
+        limit: 200,
+      }),
+      TriagePatient.count({ where: { status_verifikasi: 'BELUM_DIVERIFIKASI' } }),
+      TriagePatient.count({ where: { status_verifikasi: { [Op.in]: ['DIVERIFIKASI', 'OVERRIDDEN'] } } }),
+    ]);
+
     return res.json({
       status: 'success',
       data: patients,
+      meta: { pending, done },
     });
   } catch (error) {
     next(error);
@@ -125,92 +174,88 @@ export const getTriagePatientById = async (req, res, next) => {
   }
 };
 
-// Pemetaan prioritas ke prefix nomor antrean tidak lagi digunakan karena
-// nomor antrean memakai satu urutan harian yang digabung (tanpa A/B/C/D).
-
 /**
- * Memperbarui data registrasi pasien triase (mode edit dari halaman antrean)
+ * Mengedit data pasien oleh perawat. Dengan `verifikasi: true`, data ditandai terverifikasi
+ * beserta identitas verifikator & waktunya. Mengubah prioritas dari rekomendasi AI wajib
+ * disertai alasan (status menjadi OVERRIDDEN).
  */
 export const updateTriagePatient = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
   try {
-    const patient = await TriagePatient.findByPk(req.params.id, { transaction });
+    const data = triageVerifySchema.parse(req.body);
+
+    const patient = await TriagePatient.findByPk(req.params.id, {
+      include: [
+        { model: Queue, as: 'queue' }
+      ],
+    });
     if (!patient) {
-      await transaction.rollback();
       return res.status(404).json({
         status: 'error',
         message: 'Pasien tidak ditemukan.',
       });
     }
 
-    const data = triageUpdateSchema.parse(req.body);
-    const priorityChanged =
-      data.prioritas_triage !== undefined && data.prioritas_triage !== patient.prioritas_triage;
+    // Data lama (sebelum fitur verifikasi) belum punya prioritas_ai: gunakan prioritas saat ini sebagai acuan.
+    if (!patient.prioritas_ai) {
+      patient.prioritas_ai = patient.prioritas_triage;
+    }
 
-    const updates = {};
-    if (data.nama_pasien !== undefined) updates.nama_pasien = data.nama_pasien;
-    if (data.umur !== undefined) updates.umur = data.umur;
-    if (data.jenis_kelamin !== undefined) updates.jenis_kelamin = data.jenis_kelamin;
-    if (data.keluhan_utama !== undefined) updates.keluhan_utama = data.keluhan_utama;
-    if (data.tanda_vital !== undefined) updates.tanda_vital = data.tanda_vital;
-    if (data.prioritas_triage !== undefined) updates.prioritas_triage = data.prioritas_triage;
-    if (data.catatan_petugas !== undefined) updates.catatan_petugas = data.catatan_petugas;
+    const previousPriority = patient.prioritas_triage;
+    const isOverride = data.prioritas_triage !== patient.prioritas_ai;
+    if (data.verifikasi && isOverride && !data.alasan_override) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Alasan perubahan prioritas wajib diisi bila prioritas berbeda dari rekomendasi AI.',
+      });
+    }
 
-    if (priorityChanged) {
-      updates.status_verifikasi = 'OVERRIDDEN';
-      if (data.alasan_perubahan) {
-        updates.catatan_petugas = [patient.catatan_petugas, `Perubahan prioritas: ${data.alasan_perubahan}`]
-          .filter(Boolean)
-          .join('\n');
+    patient.set({
+      nama_pasien: data.nama_pasien,
+      umur: data.umur,
+      satuan_umur: data.satuan_umur,
+      jenis_kelamin: data.jenis_kelamin,
+      nik: data.nik || null,
+      tanggal_lahir: data.tanggal_lahir || null,
+      keluhan_utama: data.keluhan_utama,
+      waktu_mulai_keluhan: data.waktu_mulai_keluhan || null,
+      alergi_obat: data.alergi_obat || null,
+      tanda_vital: data.tanda_vital || {},
+      asesmen: data.asesmen || {},
+      catatan_petugas: data.catatan_petugas || null,
+      prioritas_triage: data.prioritas_triage,
+      alasan_override: isOverride ? (data.alasan_override || null) : null,
+    });
+
+    if (data.verifikasi) {
+      const verifikator = req.user?.id ? await User.findByPk(req.user.id) : null;
+      patient.status_verifikasi = isOverride ? 'OVERRIDDEN' : 'DIVERIFIKASI';
+      patient.petugas_verifikator_id = verifikator?.id || null;
+      patient.nama_verifikator = verifikator?.nama || null;
+      patient.waktu_verifikasi = new Date();
+    }
+
+    await patient.save();
+
+    // Bila prioritas berubah, urutkan ulang nomor antrean hari itu
+    // (dari tingkat risiko paling tinggi) lalu muat ulang nomornya.
+    if (data.prioritas_triage !== previousPriority) {
+      const queue = await Queue.findOne({ where: { triage_patient_id: patient.id } });
+      if (queue) {
+        await renumberQueuesForDay(queue.createdAt);
+        await queue.reload();
       }
     }
 
-    await patient.update(updates, { transaction });
-
-    // Ambil antrean terkait untuk dikembalikan pada respons.
-    const queue = await Queue.findOne({
-      where: { triage_patient_id: patient.id },
-      transaction,
-    });
-
-    // Jika prioritas berubah, urutkan ulang nomor antrean hari itu
-    // (dari tingkat risiko paling tinggi) lalu muat ulang nomornya.
-    if (queue && priorityChanged) {
-      await renumberQueuesForDay(queue.createdAt, transaction);
-      await queue.reload({ transaction });
-    }
-
-    await transaction.commit();
-
     return res.json({
       status: 'success',
-      message: 'Data registrasi pasien berhasil diperbarui.',
-      data: {
-        patient: {
-          id: patient.id,
-          nama_pasien: patient.nama_pasien,
-          umur: patient.umur,
-          jenis_kelamin: patient.jenis_kelamin,
-          keluhan_utama: patient.keluhan_utama,
-          tanda_vital: patient.tanda_vital,
-          catatan_petugas: patient.catatan_petugas,
-          prioritas_triage: patient.prioritas_triage,
-          skor_urgensi: patient.skor_urgensi,
-          analisis_ai: patient.analisis_ai,
-        },
-        queue: queue
-          ? { id: queue.id, nomor_antrean: queue.nomor_antrean, status: queue.status }
-          : null,
-      },
+      message: data.verifikasi
+        ? 'Data pasien berhasil diverifikasi.'
+        : 'Perubahan data pasien berhasil disimpan.',
+      data: patient,
     });
   } catch (error) {
-    await transaction.rollback();
     if (error.name === 'ZodError') {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Validasi data gagal.',
-        errors: error.issues || error.errors,
-      });
+      return zodErrorResponse(res, error);
     }
     next(error);
   }

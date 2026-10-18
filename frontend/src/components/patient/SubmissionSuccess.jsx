@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { CircleCheck, Clock, Stethoscope, UserRound } from 'lucide-react';
+import { CircleCheck, Clock } from 'lucide-react';
 import EmergencyBox from './EmergencyBox';
 import PriorityBadge from '../common/PriorityBadge';
 import { buttonOutlineClass } from '../../utils/styles';
@@ -21,7 +21,7 @@ function formatNik(submission) {
 }
 
 const STEPS = [
-  ['Verifikasi identitas & kunjungan', 'Petugas memeriksa referensi pengajuan, identitas, dan keluhan Anda.', 'bg-amber-100 text-amber-800'],
+  ['Verifikasi identitas & kunjungan', 'Petugas memeriksa nomor antrean, identitas, dan keluhan Anda.', 'bg-amber-100 text-amber-800'],
   ['Penilaian kondisi (asesmen)', 'Petugas menilai kondisi Anda untuk menentukan prioritas layanan sebelum tiket diterbitkan.', 'bg-amber-100 text-amber-800'],
   ['Tiket antrean diterbitkan', 'Setelah kedua langkah selesai, Anda mendapat nomor tiket pribadi dan estimasi waktu tunggu bila tersedia. Nomor tiket bersifat tetap; urutan panggil dapat berubah sesuai urgensi klinis.', 'bg-emerald-100 text-emerald-800'],
 ];
@@ -29,12 +29,13 @@ const STEPS = [
 export default function SubmissionSuccess({ submission }) {
   // Klasifikasi triase hasil penilaian awal (merah/kuning/hijau).
   const priorityKey = submission.priority || 'hijau';
+  const queueNumber = submission?.nomorAntrean || submission?.nomor_antrean || submission?.referensi || '—';
 
   return (
     <div className="space-y-6 px-4 py-6">
       <div>
         <span className="inline-block rounded-md bg-slate-200/70 px-2.5 py-1 text-xs font-semibold text-slate-600">
-          Pengajuan diterima • simulasi
+          Pengajuan diterima
         </span>
         <span className="mt-4 flex size-14 items-center justify-center rounded-full bg-brand-50 text-brand-700">
           <CircleCheck className="size-8" aria-hidden="true" />
@@ -43,15 +44,16 @@ export default function SubmissionSuccess({ submission }) {
           Keluhan berhasil diajukan
         </h1>
         <p className="mt-3 text-base text-slate-600">
-          Pengajuan Anda sudah tercatat. Tidak ada data pasien sungguhan yang dikirim pada prototipe
-          ini.
+          Pengajuan Anda sudah tercatat ke dalam sistem antrean triase. Silakan menunggu konfirmasi dan pemanggilan oleh petugas.
         </p>
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-        <p className="text-sm text-slate-500">Nomor antrean Anda</p>
+        <p className="text-sm font-medium text-slate-500">
+          Nomor antrean <span className="text-xs font-normal text-amber-700">(Masih bisa berubah, menunggu verifikasi petugas)</span>
+        </p>
         <div className="mt-1 flex flex-wrap items-center gap-2.5">
-          <p className="text-2xl font-extrabold tracking-tight text-slate-900">{submission.referensi}</p>
+          <p className="text-4xl font-extrabold tracking-tight text-brand-700">{queueNumber}</p>
           <PriorityBadge priority={priorityKey} withDescription />
         </div>
         <p className="mt-2 text-xs text-slate-500">
@@ -105,7 +107,7 @@ export default function SubmissionSuccess({ submission }) {
           ))}
         </ol>
         <p className="mt-5 rounded-lg bg-slate-100 p-4 text-sm leading-relaxed text-slate-600">
-          Nomor tiket Anda bukan peringkat atau kode urgensi. Urutan panggil ditentukan petugas
+          Nomor antrean Anda bukan peringkat atau kode urgensi. Urutan panggil ditentukan petugas
           berdasarkan prioritas klinis, bukan urutan formulir masuk.
         </p>
       </section>
@@ -117,8 +119,8 @@ export default function SubmissionSuccess({ submission }) {
         </h2>
         <dl className="mt-4 space-y-4 border-t border-slate-100 pt-4 text-sm">
           {[
-            ['Nomor tiket', submission.referensi],
-            ['Estimasi waktu tunggu', 'Belum tersedia'],
+            ['Nomor antrean (Masih bisa berubah, menunggu verifikasi petugas)', queueNumber],
+            ['Estimasi waktu tunggu', 'Menunggu asesmen'],
             ['Prioritas klinis', <PriorityBadge priority={priorityKey} />],
           ].map(([term, value]) => (
             <div key={term}>
@@ -133,23 +135,6 @@ export default function SubmissionSuccess({ submission }) {
           Nomor dan klasifikasi awal di atas merupakan hasil penilaian awal sistem. Petugas dapat
           memperbaruinya setelah verifikasi dan asesmen kondisi Anda.
         </p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-bold text-slate-900">Apa yang perlu dilakukan?</h2>
-        <ul className="mt-4 space-y-4 text-sm leading-relaxed text-slate-700">
-          <li className="flex gap-3">
-            <UserRound className="mt-0.5 size-5 shrink-0 text-slate-500" aria-hidden="true" />
-            Datang atau lapor kepada petugas pendaftaran. Tunjukkan referensi pengajuan untuk
-            verifikasi identitas dan keluhan.
-          </li>
-          <li className="flex gap-3">
-            <Stethoscope className="mt-0.5 size-5 shrink-0 text-slate-500" aria-hidden="true" />
-            Petugas akan menilai kondisi Anda. Prioritas layanan berdasarkan kondisi, bukan waktu
-            pengiriman formulir.
-          </li>
-        </ul>
-        <p className="mt-4 text-base font-bold text-slate-900">Jika kondisi memburuk, segera minta bantuan petugas.</p>
       </section>
 
       <EmergencyBox />
